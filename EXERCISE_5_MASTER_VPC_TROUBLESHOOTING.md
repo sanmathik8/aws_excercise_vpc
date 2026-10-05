@@ -79,7 +79,7 @@ VPC-B: Production VPC CIDR
 ```
 
 ### Main Administration Architecture Flow:
-*In this architecture flow, the **Bastion Host** (in Account A Public Subnet A) serves as the secure administrative entry point over SSH. The **Target EC2** (in Account B Private Subnet D) is the private workload instance you are testing connectivity to over VPC Peering without exposing it directly to the internet.*
+*In this architecture flow, the **Bastion Host** (in Account A Public Subnet A) serves as the secure administrative entry point over SSH (TCP 22). The **Target EC2** (in Account B Private Subnet D) is the private workload instance you are testing connectivity to over VPC Peering without exposing it directly to the internet.*
 
 ```text
 Engineer (Internet)
@@ -97,8 +97,13 @@ Target EC2 [Account B / Private Subnet D (Target Private IP)]
 
 Solve the following 12 realistic production incidents:
 
-### Incident 1 — Bastion Cannot Reach Target Across Peering
+### Incident 1 — Bastion Cannot Reach Target Across Peering (TCP 22 Blocked)
 - **Symptom:** Developer on `Bastion-EC2` (`Bastion Private IP`) attempts to SSH to `Target-EC2` (`Target Private IP`) in Account B over VPC Peering. SSH command times out.
+- **Protocol Analysis (SSH — TCP 22):**
+  - **Why:** SSH provides secure remote command-line terminal access across the peering connection.
+  - **Why TCP:** SSH requires connection-oriented reliable delivery so terminal packets are not dropped.
+  - **Why port 22:** Standard destination port assigned for SSH traffic.
+  - **If blocked:** Connection times out even if peering routes are completely active.
 - **Troubleshooting Steps:**
   1. Inspect Peering Connection state in Account A/B (`Active`).
   2. Inspect Account A `Public-Route-Table`: Verify route `Production VPC CIDR → pcx-xxxx` exists.
@@ -106,10 +111,9 @@ Solve the following 12 realistic production incidents:
   4. Inspect Account B `Target-EC2-SG`: Verify inbound TCP 22 from source `Bastion Subnet CIDR`.
   5. Inspect Account B `Private-Subnet-D` NACL: Verify inbound/outbound rules permit TCP 22 & ephemeral ports.
 - **Verification:** Correct the missing route or security group rule. SSH from Bastion to Target EC2 succeeds.
-- **Reasoning:** Cross-account peering traffic requires matching route table targets and explicitly allowed firewalls on both sending and receiving sides.
 
-### Incident 2 — Production Target Cannot Reach Internet for Package Updates
-- **Symptom:** `Target-EC2` (`Target Private IP`) in Account B fails to download OS security patches via `apt-get` or `yum`.
+### Incident 2 — Production Target Cannot Reach Internet for Package Updates (HTTP/HTTPS Outbound)
+- **Symptom:** `Target-EC2` (`Target Private IP`) in Account B fails to download OS security patches via `apt-get` or `yum` over HTTPS (TCP 443).
 - **Troubleshooting Steps:**
   1. Inspect `Private-Subnet-D` route table in Account B. Verify route `0.0.0.0/0 → NAT-Gateway-B`.
   2. Inspect `NAT-Gateway-B` status in `us-west-2` console. Ensure status is `Available`.
@@ -127,8 +131,11 @@ Solve the following 12 realistic production incidents:
 - **Verification:** Associate `S3 Gateway Endpoint` with `Private-Route-Table`. Run `aws s3 ls --region us-east-1` from private EC2 and confirm traffic matches the prefix list route instead of default NAT.
 - **Reasoning:** S3 Gateway Endpoints inject prefix list routes that are more specific than `0.0.0.0/0`. Missing endpoints force S3 traffic through NAT Gateway, incurring heavy per-GB data processing charges.
 
-### Incident 4 — SSM Session Manager Fails for Private Instance
+### Incident 4 — SSM Session Manager Fails for Private Instance (HTTPS TCP 443)
 - **Symptom:** An engineer tries to open an SSM Session Manager shell to `Private-EC2` in Account A (`Private EC2 Private IP`). The SSM console reports `Target instance not connected`.
+- **Protocol Analysis (HTTPS — TCP 443):**
+  - **Why:** SSM Session Manager transmits encrypted API control streams over TLS port 443.
+  - **If blocked:** The SSM Agent daemon cannot establish an API websocket channel to AWS SSM endpoints.
 - **Troubleshooting Steps:**
   1. **IAM Role:** Verify EC2 instance profile has `AmazonSSMManagedInstanceCore` policy attached.
   2. **SSM Agent:** Verify SSM Agent daemon is running on OS.
@@ -136,7 +143,6 @@ Solve the following 12 realistic production incidents:
   4. **Interface Endpoints:** Verify endpoints for `ssm`, `ssmmessages`, `ec2messages` exist in `VPC-A`.
   5. **Endpoint Security Group:** Verify `SSM-VPCE-SG` permits Inbound HTTPS (TCP 443) from `Development VPC CIDR`.
 - **Verification:** Click **Start Session** in SSM Console. Verify successful terminal shell prompt.
-- **Reasoning:** SSM Session Manager on private EC2 instances without internet access requires working IAM credentials, active OS daemon, private DNS, and reachable VPC Interface Endpoints on port 443.
 
 ### Incident 5 — Security Group Inbound Rule Is Allowed but Connection Fails
 - **Symptom:** Security Group for a database instance permits TCP port 5432 from `Private Subnet A CIDR`. However, database connection attempts hang indefinitely.

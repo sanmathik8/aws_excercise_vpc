@@ -86,8 +86,22 @@ Internet Gateway (IGW-A)
 4. Confirm `Private-Subnet-A` and `Private-Subnet-B` are associated with `Private-Route-Table`.
 5. **Do NOT** route private subnets directly to the Internet Gateway.
 
-### Step 5 — Launch Test Instances to Verify Connectivity
+### Step 5 — Launch Test Instances & Understand Protocol Ports
 *A **Bastion Host** is an EC2 instance placed in a public subnet with a public IP address. Engineers use it as a controlled entry point to reach private instances over SSH. The **Target EC2** (or **App EC2**) is a private EC2 instance residing in a private subnet that hosts your backend workload. The private target instance is not given a public IP and is not directly exposed to the internet, keeping it isolated from direct external attacks.*
+
+#### Understanding the Protocols Used:
+
+##### SSH — TCP 22
+- **Why:** SSH (Secure Shell) provides secure remote command-line terminal access to an EC2 instance.
+- **Why TCP:** SSH requires a connection-oriented, reliable transport protocol so commands and terminal output are delivered in order without packet loss.
+- **Why port 22:** TCP port 22 is the standard network port assigned for SSH traffic.
+- **If blocked:** The SSH connection times out and fails, even if the network route itself is completely correct.
+- **What to check:** Route Table → Security Group Inbound Rule → NACL Inbound/Outbound Rules → Instance OS SSH daemon.
+
+##### HTTP — TCP 80 & HTTPS — TCP 443
+- **HTTP (Hypertext Transfer Protocol):** An unencrypted application-layer web protocol using destination TCP port 80.
+- **HTTPS (HTTP Secure):** An encrypted application-layer web protocol using TLS/SSL over destination TCP port 443.
+- **Application vs Transport:** HTTP and HTTPS are application protocols; TCP is the underlying transport protocol; ports 80 and 443 are destination ports targeted by web traffic. Security Groups filter outbound web updates by matching TCP protocol and ports 80/443.
 
 1. Launch `Bastion-EC2` in `Public-Subnet-A` with **Auto-assign Public IP** enabled.
 2. Launch `App-EC2` in `Private-Subnet-A` with **Auto-assign Public IP** disabled.
@@ -96,20 +110,29 @@ Internet Gateway (IGW-A)
 
 ## Scenario-Based Verification & Troubleshooting
 
-### Scenario 1 — Public Instance Cannot Reach Internet
-- **Symptom:** `Bastion-EC2` in `Public-Subnet-A` cannot reach `google.com` or download updates.
+### Scenario 1 — SSH Works Before Rule Removal, Fails When TCP 22 Is Blocked
+- **Symptom:** An engineer can SSH into `Bastion-EC2` successfully. After a security audit, the inbound TCP 22 Security Group rule is accidentally removed or changed. Subsequent SSH attempts return `Connection timed out`.
+- **Hands-on Protocol Test:**
+  1. Verify SSH to `Bastion-EC2` works when Security Group has Inbound `TCP 22` allowed.
+  2. Remove the Inbound `TCP 22` rule from `Bastion-SG`.
+  3. Attempt SSH again — verify that connection fails with `Connection timed out`.
+  4. Re-add Inbound `TCP 22` from client IP — verify SSH access is restored.
+- **Reasoning:** Security Groups filter packets at the network interface level. Blocking TCP port 22 drops incoming TCP SYN packets before they reach the OS SSH service.
+
+### Scenario 2 — Public Instance Cannot Reach Internet
+- **Symptom:** `Bastion-EC2` in `Public-Subnet-A` cannot reach `google.com` or download updates over HTTP/HTTPS.
 - **Investigation Step-by-Step:**
   1. **Public IP:** Check if `Bastion-EC2` has a Public IPv4 address assigned.
   2. **Subnet Route Table:** Verify `Public-Subnet-A` is associated with `Public-Route-Table`.
   3. **IGW Route:** Inspect `Public-Route-Table` to confirm `0.0.0.0/0 → IGW-A` exists.
   4. **IGW Attachment:** Verify `IGW-A` is in `Attached` state to `VPC-A`.
-  5. **Security Group:** Verify outbound rules allow HTTP/HTTPS or SSH traffic.
+  5. **Security Group:** Verify outbound rules allow HTTP/HTTPS (TCP 80/443) or all traffic.
   6. **NACL:** Verify Network ACL permits outbound/inbound traffic on ephemeral ports.
 - **Verification:** Once missing route or public IP is fixed, run `curl -I https://aws.amazon.com` from `Bastion-EC2` to confirm HTTP responses.
 - **Reasoning:** A subnet is only effectively public if its route table directs internet-bound traffic (`0.0.0.0/0`) to an attached Internet Gateway AND the EC2 instance has a public IP address to map via 1:1 NAT at the IGW.
 
-### Scenario 2 — Private Instance Cannot Reach Internet
-- **Symptom:** `App-EC2` in `Private-Subnet-A` fails to run `sudo yum update` or curl external APIs.
+### Scenario 3 — Private Instance Cannot Reach Internet
+- **Symptom:** `App-EC2` in `Private-Subnet-A` fails to run `sudo yum update` or curl external APIs over HTTPS (TCP 443).
 - **Investigation Step-by-Step:**
   1. Inspect `Private-Subnet-A` route table association.
   2. Check if `Private-Route-Table` has `0.0.0.0/0 → NAT-Gateway-A`.
@@ -120,7 +143,7 @@ Internet Gateway (IGW-A)
 - **Verification:** Run `curl https://ifconfig.me` from `App-EC2`. It should return the Elastic IP address assigned to `NAT-Gateway-A`.
 - **Reasoning:** The private instance sends packets to NAT Gateway via its default route. NAT Gateway translates the private source IP to its public Elastic IP and forwards packets to IGW. If any segment of this chain (Private RT → NAT GW → Public RT → IGW) is broken, outbound internet access fails.
 
-### Scenario 3 — Private Instance Accidentally Has Direct Internet Route
+### Scenario 4 — Private Instance Accidentally Has Direct Internet Route
 - **Symptom:** A developer attempts to fix outbound internet access for private instances by adding `0.0.0.0/0 → IGW-A` directly to `Private-Route-Table`.
 - **Investigation:**
   1. Inspect `Private-Route-Table` and identify the route `0.0.0.0/0 → IGW-A`.
@@ -132,7 +155,7 @@ Internet Gateway (IGW-A)
 - **Verification:** Remove `0.0.0.0/0 → IGW-A` from `Private-Route-Table` and restore `0.0.0.0/0 → NAT-Gateway-A`.
 - **Reasoning:** Internet Gateways perform 1:1 NAT between an EC2 instance's private IP and its public IP. If an EC2 instance lacks a public IP, the IGW cannot perform NAT, causing internet traffic to drop even if the route exists. Furthermore, assigning public IPs to private workloads exposes them to direct inbound attack.
 
-### Scenario 4 — NAT Gateway Created in Private Subnet
+### Scenario 5 — NAT Gateway Created in Private Subnet
 - **Symptom:** NAT Gateway is created, but private instances using it still cannot reach the internet.
 - **Investigation:**
   1. Go to **VPC > NAT Gateways > NAT-Gateway-A**.
@@ -144,7 +167,7 @@ Internet Gateway (IGW-A)
 - **Verification:** Re-create `NAT-Gateway-A` in `Public-Subnet-B`, which has a valid default route to `IGW-A`.
 - **Reasoning:** A NAT Gateway must reside in a public subnet. It relies on the public subnet's route table (`0.0.0.0/0 → IGW`) to forward source-translated packets out to the internet.
 
-### Scenario 5 — NAT Works but Connection Still Fails
+### Scenario 6 — NAT Works but Connection Still Fails
 - **Symptom:** `Private-Route-Table` correctly points to `NAT-Gateway-A`, but `App-EC2` cannot reach external sites.
 - **Required Systematic Troubleshooting Order:**
   ```text
@@ -158,7 +181,7 @@ Internet Gateway (IGW-A)
   5. Confirm Security Group allows outbound traffic (default allows all).
   6. Confirm NACL permits ephemeral ports return traffic.
 
-### Scenario 6 — NAT Gateway vs Internet Gateway Concepts
+### Scenario 7 — NAT Gateway vs Internet Gateway Concepts
 - **Symptom:** A security auditor asks: "Why do we pay for a NAT Gateway when an Internet Gateway is free?"
 - **Questions to Answer:**
   - What is the fundamental functional difference between an Internet Gateway and a NAT Gateway?
@@ -166,7 +189,7 @@ Internet Gateway (IGW-A)
 - **Verification:** Provide a technical comparison explaining why private backend instances require NAT for outbound-only access.
 - **Reasoning:** IGW provides 1:1 bi-directional mapping (allows external internet hosts to initiate connections to public IPs). NAT Gateway provides 1:Many Network Address Translation for outbound initiation only (blocks external hosts from initiating connections to private IPs).
 
-### Scenario 7 — High Availability & NAT Architecture Review
+### Scenario 8 — High Availability & NAT Architecture Review
 - **Symptom:** Availability Zone `us-east-1b` (which hosts `NAT-Gateway-A` in `Public-Subnet-B`) suffers a total outage.
 - **Investigation:**
   1. Trace traffic from `Private-Subnet-A` (in `us-east-1a`). Its route points to `NAT-Gateway-A` in `us-east-1b`.

@@ -94,6 +94,13 @@ VPC-A (Development VPC CIDR)                         VPC-B (Production VPC CIDR)
 ### Step 6 — Create SSM Interface Endpoints (AWS PrivateLink)
 *An **Interface Endpoint** (powered by AWS PrivateLink) provisions Elastic Network Interfaces (ENIs) with private IP addresses inside your private subnets. **AWS Systems Manager (SSM)** Session Manager uses these endpoints to grant secure shell access to private EC2 instances without requiring open inbound SSH ports, public IP addresses, or a Bastion host.*
 
+#### HTTPS — TCP 443 for SSM Interface Endpoints
+- **Why:** SSM API communication requires encrypted HTTPS web service requests over PrivateLink.
+- **Why TCP:** HTTPS uses TCP for connection reliability and TLS for encryption and identity verification.
+- **Why port 443:** Standard destination port assigned for HTTPS/TLS traffic.
+- **If blocked:** The SSM Agent on private EC2 instances cannot register or establish terminal sessions, causing SSM Console to report `Target instance is not connected`.
+- **What to check:** Endpoint Security Group Inbound HTTPS 443 → VPC Private DNS → Private Subnet Route Table → SSM Agent Status.
+
 1. Open **VPC > Endpoints > Create endpoint** in `VPC-A`.
 2. Create Interface Endpoints for SSM services:
    - `com.amazonaws.us-east-1.ssm`
@@ -165,27 +172,29 @@ VPC-A (Development VPC CIDR)                         VPC-B (Production VPC CIDR)
 - **Verification:** Attach S3 Gateway Endpoint to `Private-Route-Table`. Confirm S3 prefix list route appears. Verify traffic bypasses NAT Gateway.
 - **Reasoning:** S3 Gateway Endpoints inject a specific prefix list route into the VPC route table. Because prefix routes are more specific than `0.0.0.0/0`, S3 traffic routes directly over the AWS internal network backbone, eliminating NAT processing fees.
 
-### Scenario 6 — Interface Endpoint Private DNS Resolution
-- **Symptom:** A private EC2 instance makes an API call to `ssm.us-east-1.amazonaws.com`, but the traffic routes to public internet IPs instead of the Interface Endpoint private IP.
-- **Investigation:**
-  1. Run `nslookup ssm.us-east-1.amazonaws.com` from the private EC2 instance.
-  2. Check VPC DNS settings (**Enable DNS resolution** and **Enable DNS hostnames**).
-  3. Inspect the Interface Endpoint **Enable Private DNS name** attribute.
-- **Verification:** When Private DNS is enabled, `nslookup ssm.us-east-1.amazonaws.com` returns the private ENI IP address assigned to the Interface Endpoint inside `VPC-A`.
-- **Reasoning:** AWS PrivateLink Interface Endpoints create Elastic Network Interfaces (ENIs) inside your private subnets. Enabling Private DNS overrides public DNS responses so that standard AWS service hostnames resolve directly to your local endpoint ENI IP addresses.
+### Scenario 6 — Hostname Resolves to Public IP Instead of Private ENI IP
+- **Symptom:** A private EC2 instance makes an API call to `https://ssm.us-east-1.amazonaws.com`. Traffic fails because it attempts to route over the public internet instead of using the Interface Endpoint ENI.
+- **DNS Protocol Investigation:**
+  1. Run `nslookup ssm.us-east-1.amazonaws.com` on the private EC2 instance.
+  2. Check if the DNS query returns a public IP address or a local VPC private ENI IP.
+  3. Inspect the Interface Endpoint attribute **Enable Private DNS name**.
+- **Questions to Answer:**
+  - Why does standard public DNS resolve `ssm.us-east-1.amazonaws.com` to public internet IP addresses?
+  - How does enabling Private DNS override public DNS resolution so standard hostnames resolve directly to the Interface Endpoint private ENI IP?
+- **Verification:** Enable Private DNS name on the Interface Endpoint. Re-run `nslookup ssm.us-east-1.amazonaws.com` and confirm it resolves to the local private ENI IP in `VPC-A`.
+- **Reasoning:** Security Groups and Route Tables act on IP addresses. If DNS resolves an AWS service hostname to a public IP instead of the Interface Endpoint private IP, traffic targets the default NAT route instead of PrivateLink.
 
-### Scenario 7 — SSM Session Manager Fails to Connect
+### Scenario 7 — SSM Session Manager Fails When TCP 443 Is Blocked
 - **Symptom:** An engineer attempts to connect to `App-EC2` via SSM Session Manager, but the console displays `Target instance is not connected`.
 - **Systematic Troubleshooting Order:**
   ```text
   1. SSM Agent Running ──► 2. IAM Role (AmazonSSMManagedInstanceCore) ──► 3. VPC DNS Enabled ──► 4. Interface Endpoints Active ──► 5. Endpoint SG TCP 443
   ```
-- **Execution:**
-  1. Confirm `App-EC2` has an IAM Instance Profile with `AmazonSSMManagedInstanceCore` attached.
-  2. Confirm VPC has Private DNS enabled.
-  3. Confirm Interface Endpoints (`ssm`, `ssmmessages`, `ec2messages`) exist in `VPC-A`.
-  4. Confirm `SSM-VPCE-SG` allows Inbound HTTPS (TCP 443) from `Development VPC CIDR`.
-  5. Retest SSM Session Manager connection.
+- **Hands-on Protocol Test:**
+  1. Verify SSM connection succeeds when `SSM-VPCE-SG` allows Inbound `HTTPS (TCP 443)`.
+  2. Remove the `TCP 443` Inbound rule from `SSM-VPCE-SG`.
+  3. Attempt SSM Session connection — verify that connection fails because HTTPS API traffic is blocked.
+- **Execution:** Re-add `TCP 443` Inbound rule from `Development VPC CIDR`. Retest SSM Session Manager connection.
 
 ### Scenario 8 — Security Group Reference Across Cross-Region Peering
 - **Symptom:** An admin tries to configure `Target-EC2-SG` in Account B (`us-west-2`) by adding an inbound rule referencing `sg-12345` (Bastion SG in `us-east-1`). AWS Console displays an invalid parameter error.

@@ -40,6 +40,25 @@ Follow these steps to configure security rules and diagnostic tools in **VPC-A (
 ### Step 1 — Configure Bastion Security Group (`Bastion-SG`)
 *A **Security Group** is a stateful virtual firewall operating at the Elastic Network Interface (ENI) level for your EC2 instances. It inspects incoming and outgoing traffic, automatically permitting return traffic for established connections.*
 
+#### Transport Protocol Fundamentals:
+
+##### TCP (Transmission Control Protocol)
+- **Characteristics:** Connection-oriented, reliable, guarantees packet delivery order via a 3-way handshake (SYN, SYN-ACK, ACK).
+- **Uses Ports:** Yes (e.g., SSH port 22, HTTP port 80, HTTPS port 443).
+- **Used by:** Applications requiring exact, error-free data transfer.
+
+##### UDP (User Datagram Protocol)
+- **Characteristics:** Connectionless, low-overhead, does not perform TCP-style connection establishment or retransmissions.
+- **Uses Ports:** Yes (e.g., DNS port 53).
+- **Used by:** Low-latency streaming, DNS queries, and real-time network services.
+
+##### SSH — TCP 22
+- **Why:** SSH provides encrypted remote terminal shell access to an EC2 instance.
+- **Why TCP:** SSH requires connection-oriented reliability so terminal commands are delivered accurately.
+- **Why port 22:** Standard destination port assigned for SSH traffic.
+- **If blocked:** The connection times out and fails, even when underlying network routing is completely functional.
+- **What to check:** Route Table → Security Group Inbound Rule → NACL Inbound/Outbound Rules → Instance OS SSH daemon.
+
 1. Create a Security Group named `Bastion-SG` in `VPC-A`.
 2. **Inbound Rules:**
    - Type: `SSH` | Protocol: `TCP` | Port: `22` | Source: `0.0.0.0/0`
@@ -84,16 +103,20 @@ Follow these steps to configure security rules and diagnostic tools in **VPC-A (
 
 ## Scenario-Based Verification & Troubleshooting
 
-### Scenario 1 — SSH Connection to Bastion Fails
+### Scenario 1 — SSH Connection to Bastion Fails When TCP 22 Is Blocked
 - **Symptom:** An engineer attempts `ssh ec2-user@<BASTION-PUBLIC-IP>` and receives `Connection timed out`.
+- **Hands-on Protocol Test:**
+  1. Confirm SSH to Bastion works when Security Group has Inbound `TCP 22` allowed.
+  2. Remove the `TCP 22` Inbound rule from `Bastion-SG`.
+  3. Attempt SSH again — verify connection hangs and fails with `Connection timed out`.
 - **Systematic Investigation:**
   1. **EC2 State:** Verify `Bastion-EC2` state is `Running` and Status Checks are `2/2 passed`.
   2. **Public IP:** Confirm instance has a valid Public IPv4 address.
   3. **Route Table:** Inspect `Public-Route-Table` associated with `Public-Subnet-A` for `0.0.0.0/0 → IGW-A`.
   4. **Security Group (`Bastion-SG`):** Check inbound rules for TCP Port 22 from client IP or `0.0.0.0/0`.
   5. **NACL:** Inspect `Public-Subnet-A` NACL inbound rule 100 (`ALLOW TCP 22`) and outbound rule 100 (`ALLOW Ephemeral Ports 1024-65535`).
-- **Verification:** Once resolved, test SSH connection. Verify successful shell login prompt.
-- **Reasoning:** A `Connection timed out` error indicates packets are being silently dropped by a security rule (Security Group or NACL) or missing route table entry. A `Connection refused` error indicates traffic reached the OS but no service was listening on port 22.
+- **Verification:** Re-add `TCP 22` Inbound rule. Verify SSH connection succeeds.
+- **Reasoning:** A `Connection timed out` error indicates TCP packets are being silently dropped by a firewall rule (Security Group or NACL). A `Connection refused` error indicates traffic reached the OS but no service was listening on port 22.
 
 ### Scenario 2 — Bastion Can Reach Target, But Direct Internet Connection to Target Fails
 - **Symptom:** An engineer can SSH from `Bastion-EC2` (`Bastion Private IP`) to `App-EC2` (`Target Private IP`), but cannot SSH directly from their local workstation on the internet to `App-EC2`.
@@ -131,17 +154,18 @@ Follow these steps to configure security rules and diagnostic tools in **VPC-A (
 - **Verification:** Add Outbound NACL Rule 110: `ALLOW TCP Ports 1024-65535` to Destination `0.0.0.0/0`. Retest SSH.
 - **Reasoning:** Because NACLs are stateless, return packets are evaluated independently against outbound NACL rules. When an SSH connection is established, return traffic is sent to an ephemeral port (1024–65535) on the client. If outbound NACL rules only allow port 22, return traffic is dropped.
 
-### Scenario 5 — Ping Fails While Application Traffic Works
-- **Symptom:** A developer runs `ping` to `Target Private IP` from Bastion. Ping returns `100% packet loss`. However, `curl` on HTTP port 80 succeeds.
-- **Investigation:**
-  1. Inspect `Target-EC2-SG` rules.
-  2. Check protocol types in allowed rules.
-- **Questions to Answer:**
-  - What protocol does the `ping` utility use? (Hint: ICMP, not TCP or UDP).
-  - Does allowing TCP port 22 or port 80 in a Security Group automatically allow ICMP ping?
-  - Does a ping failure mean the network route is broken?
-- **Verification:** Explain why ping failure does not imply broken routing. Add an inbound rule for `Custom ICMP - IPv4 (Echo Request)` to `Target-EC2-SG` and verify `ping` succeeds.
-- **Reasoning:** `ping` operates using ICMP (Internet Control Message Protocol), which is separate from TCP/UDP protocols. Security Groups evaluate rules by protocol. Allowing TCP traffic does not grant ICMP access.
+### Scenario 5 — SSH Works, But Ping Fails (ICMP Diagnostics)
+- **Symptom:** A developer runs `ping` to `Target Private IP` from Bastion. Ping returns `100% packet loss`. However, `ssh` on TCP port 22 and `curl` on HTTP port 80 both succeed.
+- **Protocol Analysis:**
+  - **ICMP (Internet Control Message Protocol):** Used for network control and diagnostic messages (e.g., `ping` uses ICMP Echo Request and Echo Reply).
+  - **Ping is NOT TCP and NOT UDP:** ICMP operates directly over IP and does NOT use port numbers (such as 22, 80, or 443).
+  - **Why Ping Fails:** Allowing TCP port 22 or port 80 in a Security Group does NOT allow ICMP traffic.
+- **Investigation & Fix:**
+  1. Do NOT assume the network route is broken when ping fails while SSH/HTTP works.
+  2. Inspect `Target-EC2-SG` rules for ICMP entries.
+  3. Add an Inbound Rule for `Custom ICMP - IPv4 (Echo Request)` to `Target-EC2-SG` from `Bastion Subnet CIDR`.
+- **Verification:** Re-run `ping` from Bastion to `Target Private IP`. Confirm ping responses are received successfully.
+- **Reasoning:** Security Groups filter by protocol. Allowing TCP 22 or TCP 80 grants access strictly to those TCP ports; ICMP ping traffic is dropped by default unless explicitly allowed.
 
 ### Scenario 6 — Using VPC Flow Logs to Identify Blocked Traffic
 - **Symptom:** Application traffic between two instances is failing. You need concrete empirical log evidence to determine if traffic is blocked by Security Groups/NACLs or failing at the OS level.

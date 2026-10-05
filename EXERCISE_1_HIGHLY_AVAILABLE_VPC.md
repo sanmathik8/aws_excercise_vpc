@@ -63,6 +63,12 @@ VPC-A (Development VPC CIDR)
 
 ### Step 2 — Enable VPC DNS Settings
 *VPC DNS settings enable the Amazon-provided DNS server (located at your base VPC IP + 2) to resolve domain names and assign hostnames to instances inside your VPC.*
+
+**Why DNS Matters:**
+- **DNS (Domain Name System):** An application layer protocol that maps human-readable domain names into IP addresses.
+- **Why Applications Use DNS:** Backend applications and AWS SDKs connect to endpoints using domain names (e.g., `s3.us-east-1.amazonaws.com`) rather than hardcoded IP addresses.
+- **VPC DNS Requirement:** Disabling VPC DNS causes internal AWS service name resolution to fail, even if underlying network IP routing is functional.
+
 1. Select `VPC-A`.
 2. Under **Actions**, click **Edit VPC settings**.
 3. Enable **Enable DNS resolution**.
@@ -167,15 +173,17 @@ Create 4 non-overlapping subnets within `VPC-A` using your planned CIDR blocks:
 - **Verification:** Confirm that AWS routes the packet to `target-x` because the subnet prefix is a longer, more specific bit-mask match than the VPC prefix.
 - **Reasoning:** AWS VPC routers strictly follow standard IP routing behavior: when multiple routes match a destination IP, the route with the most specific prefix (highest prefix number / longest subnet mask) is always chosen.
 
-### Scenario 6 — DNS Settings & Private Endpoint Name Resolution
-- **Symptom:** An application team attempts to resolve internal AWS service DNS names within `VPC-A`, but standard DNS queries fail or return public IP addresses instead of VPC-local addresses.
+### Scenario 6 — DNS Settings & Hostname Resolution Failure
+- **Symptom:** An application can reach a backend service when given a raw IP address directly, but fails with `Could not resolve host` when using the service DNS hostname.
 - **Investigation:**
   1. Navigate to **VPC > Your VPCs > VPC-A**.
   2. Inspect **DNS settings**:
-     - **Enable DNS resolution**: controls whether the Amazon-provided DNS server (at the VPC network base + 2) is active.
-     - **Enable DNS hostnames**: controls whether EC2 instances in the VPC receive public/private DNS hostnames.
-- **Verification:** Ensure both `Enable DNS resolution` and `Enable DNS hostnames` are set to `Enabled`.
-- **Reasoning:** AWS Interface Endpoints and SSM Session Manager depend on private DNS resolution to resolve AWS service domain names (e.g., `ssm.us-east-1.amazonaws.com`) to private IP addresses inside the VPC. If DNS settings are disabled, private endpoint resolution fails.
+     - **Enable DNS resolution**: controls whether the Amazon-provided DNS server (at base VPC IP + 2) is active.
+     - **Enable DNS hostnames**: controls whether instances in the VPC receive private/public DNS hostnames.
+- **Troubleshooting Steps:**
+  - If an application reaches an IP address successfully but fails on hostname, investigate VPC DNS settings rather than modifying Security Groups or Route Tables.
+- **Verification:** Ensure both `Enable DNS resolution` and `Enable DNS hostnames` are set to `Enabled`. Confirm `nslookup` or `dig` resolves the hostname to the expected private IP.
+- **Reasoning:** Security Groups and Route Tables operate on IP addresses. When DNS resolution is disabled in the VPC, domain name lookup fails before IP packet transmission even begins.
 
 ---
 
