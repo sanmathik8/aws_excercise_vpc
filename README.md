@@ -1,6 +1,6 @@
-# 10-Day AWS VPC Training Program for Junior Backend Engineers
+# 10-Day AWS VPC Training Program
 
-Welcome to the self-guided 10-day AWS VPC training program designed for junior backend engineers and freshers.
+Welcome to the self-guided 10-day AWS VPC training program.
 
 This program is structured into 5 hands-on, scenario-driven exercises covering 2 days per exercise:
 

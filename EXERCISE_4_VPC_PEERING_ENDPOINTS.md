@@ -127,7 +127,7 @@ VPC-A (Development VPC CIDR)                         VPC-B (Production VPC CIDR)
 - **Reasoning:** Network communication requires bi-directional routing. Even if the request reaches the target, response packets will be dropped at the target's VPC router if no return route exists.
 
 ### Scenario 3 — Attempting to Peer Overlapping CIDRs
-- **Symptom:** A junior admin attempts to peer `VPC-A` (`Development VPC CIDR`) with a legacy staging VPC configured with the exact same CIDR block. AWS Console returns an error during creation.
+- **Symptom:** An administrator attempts to peer `VPC-A` (`Development VPC CIDR`) with a legacy staging VPC configured with the exact same CIDR block. AWS Console returns an error during creation.
 - **Investigation:**
   1. Check IPv4 CIDR blocks for both VPCs.
 - **Questions to Answer:**

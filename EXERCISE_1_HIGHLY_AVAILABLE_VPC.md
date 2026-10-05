@@ -123,7 +123,7 @@ Create 4 non-overlapping subnets within `VPC-A` using your planned CIDR blocks:
 - **Reasoning:** Every route table created in an AWS VPC automatically includes a local route matching the VPC CIDR. This route cannot be deleted or modified. AWS software-defined networking routes all traffic matching `VPC CIDR` directly between subnets within the VPC.
 
 ### Scenario 3 — CIDR Planning Problem & VPC Peering Conflict
-- **Symptom:** OrderHub needs to connect its Development VPC (`VPC-A`) to a Partner VPC in the future. A junior engineer proposes creating the Partner VPC using the exact same CIDR block as `VPC-A`.
+- **Symptom:** OrderHub needs to connect its Development VPC (`VPC-A`) to a Partner VPC in the future. Someone proposes creating the Partner VPC using the exact same CIDR block as `VPC-A`.
 - **Investigation:**
   1. Analyze what happens when two networks with identical CIDR blocks are connected via VPC Peering or VPN.
   2. Evaluate how a router decides where to send a packet when both local and peered networks claim the same IP range.
