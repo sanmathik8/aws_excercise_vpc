@@ -10,7 +10,7 @@ Your engineering team is building the network foundation for **OrderHub**, an e-
 
 A **Virtual Private Cloud (VPC)** is a logically isolated virtual network in your AWS account where you define your own IP address space, subnets, and route tables to run cloud resources. 
 
-An **Availability Zone (AZ)** consists of one or more discrete physical data centers within an AWS Region engineered with independent power, cooling, and networking to ensure fault tolerance.
+An **Availability Zone (AZ)** consists of one or more discrete physical data centers within an AWS Region engineered with independent power, cooling, and networking to ensure fault tolerance against physical data center outages.
 
 OrderHub's target architecture will eventually consist of three tiers:
 1. **Public Frontend Tier**: Handles incoming HTTPS traffic and API routing.
@@ -33,6 +33,7 @@ IPv4, CIDR, Subnetting, VPC, Subnet, Availability Zone, Route Table, Basic Routi
 
 - **Abhishek.Veeramalla — Learn Networking in 3 Hours | Networking Fundamentals + AWS VPC Networking**
   - Link: https://www.youtube.com/watch?v=iSOfkw_YyOU
+  - **Watch for:** IP Addressing, CIDR Subnetting, VPC Architecture, Route Tables
   - Verified Timestamps:
     - `00:58` — IP Address, CIDR, Subnets, Ports
     - `1:11:32` — AWS Networking
@@ -55,6 +56,8 @@ VPC-A (Development VPC CIDR)
 ```
 
 ### Step 1 — Plan CIDR Allocations & Create VPC
+* **CIDR (Classless Inter-Domain Routing):** A standard method for allocating IP addresses and defining network masks. A `/16` block provides 65,536 IP addresses for a VPC, while a `/24` block provides 256 IP addresses for a subnet.
+
 1. Choose a suitable non-overlapping IPv4 CIDR block for `VPC-A` (e.g., a `/16` network block).
 2. Plan non-overlapping subnet CIDR blocks for your 4 subnets (e.g., `/24` network blocks carved out of `VPC-A CIDR`).
 3. Open the AWS VPC Console in `us-east-1`.
@@ -62,7 +65,7 @@ VPC-A (Development VPC CIDR)
 5. Select **No IPv6 CIDR block** and keep tenancy as **Default**.
 
 ### Step 2 — Enable VPC DNS Settings
-*VPC DNS settings enable the Amazon-provided DNS server (located at your base VPC IP + 2) to resolve domain names and assign hostnames to instances inside your VPC.*
+* **VPC DNS:** Built-in AWS DNS settings that enable the Amazon-provided DNS server (located at base VPC IP + 2) to resolve domain names and assign hostnames to instances inside your VPC.*
 
 **Why DNS Matters:**
 - **DNS (Domain Name System):** An application layer protocol that maps human-readable domain names into IP addresses.
@@ -76,7 +79,9 @@ VPC-A (Development VPC CIDR)
 5. Save changes.
 
 ### Step 3 — Create Subnets
-*A **Subnet** is a range of IP addresses within your VPC bound to a single Availability Zone. A **Public Subnet** has a route table entry to an Internet Gateway. A **Private Subnet** lacks a direct Internet Gateway route, isolating backend instances from direct internet access.*
+* **Subnet:** A subdivision of a VPC IP range bound to a single Availability Zone.
+* **Public Subnet:** A subnet whose route table directs default internet traffic (`0.0.0.0/0`) to an Internet Gateway.
+* **Private Subnet:** A subnet with no direct route to an Internet Gateway, keeping backend instances isolated from direct inbound internet traffic.
 
 Create 4 non-overlapping subnets within `VPC-A` using your planned CIDR blocks:
 
@@ -98,7 +103,9 @@ Create 4 non-overlapping subnets within `VPC-A` using your planned CIDR blocks:
    - CIDR block: `Private Subnet B CIDR`
 
 ### Step 4 — Create Route Tables
-*A **Route Table** contains a set of rules (routes) that determine where network traffic leaving your subnets or gateways is directed.*
+* **Route Table:** A set of rules (routes) used to determine where network traffic leaving your subnets or gateways is directed.
+* **Route Table Association:** The explicit connection linking a subnet to a specific route table so it inherits those routing rules.
+
 1. Create a custom route table named `Public-Route-Table` in `VPC-A`.
 2. Create a custom route table named `Private-Route-Table` in `VPC-A`.
 
@@ -107,6 +114,8 @@ Create 4 non-overlapping subnets within `VPC-A` using your planned CIDR blocks:
 2. Associate `Private-Subnet-A` and `Private-Subnet-B` with `Private-Route-Table`.
 
 ### Step 6 — Verify Configurations
+* **Local Route:** The default non-deletable route entry (`VPC CIDR → local`) automatically added to every VPC route table, enabling all subnets within the same VPC to communicate with each other.
+
 1. Verify that every subnet displays the expected available IP address capacity (total IPs for the subnet mask minus 5 reserved by AWS).
 2. Inspect the **Routes** tab for both route tables and confirm the implicit `VPC CIDR → local` route is present.
 

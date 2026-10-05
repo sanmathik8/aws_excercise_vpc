@@ -26,8 +26,10 @@ VPC Peering, CIDR, Route Tables, Cross-Account AWS, Cross-Region AWS, Gateway En
 
 - **Gokce DB — How To: VPC Peering Connection | AWS | Between 2 VPCs in Different Accounts & Regions**
   - Link: https://www.youtube.com/watch?v=0mRA-KuXI2s
+  - **Watch for:** Cross-account & cross-region VPC Peering, route table targets, non-transitive behavior
 - **AWS Sessions — AWS VPC Endpoints | Interface Endpoint | Gateway Endpoint | AWS Sessions | Demo | PrivateLink**
   - Link: https://www.youtube.com/watch?v=-jwV98oyKqY
+  - **Watch for:** Gateway Endpoint prefix lists, Interface Endpoint ENIs, Private DNS
   - Verified Timestamps:
     - `00:00` — VPC endpoints
     - `02:41` — Interface endpoint introduction
@@ -36,6 +38,7 @@ VPC Peering, CIDR, Route Tables, Cross-Account AWS, Cross-Region AWS, Gateway En
     - `12:30` — Interface endpoint demo
 - **DevOps by Shaik Moulali — AWS Session Manager (SSM) Tutorial | Securely Access Private EC2 Instances Without SSH Keys & Bastion**
   - Link: https://www.youtube.com/watch?v=3J-V1myF1mM
+  - **Watch for:** Session Manager configuration, IAM instance profile, endpoint connectivity
 
 ---
 
@@ -83,7 +86,7 @@ VPC-A (Development VPC CIDR)                         VPC-B (Production VPC CIDR)
    - *Note:* Do NOT reference Security Group IDs (`sg-xxxx`) across regions; use CIDR blocks.
 
 ### Step 5 — Create S3 Gateway Endpoint
-*A **Gateway Endpoint** is a free VPC endpoint type that targets a specific route table entry using an AWS service Prefix List. It directs Amazon S3 traffic over the AWS internal network backbone, completely bypassing the internet and NAT Gateway.*
+*A **Gateway Endpoint** is a free VPC endpoint type that targets a specific route table entry using an AWS service Prefix List. A **Prefix List** is a managed set of IP address ranges representing an AWS service, such as S3, used as a destination target in VPC route tables. It directs Amazon S3 traffic over the AWS internal network backbone, completely bypassing the internet and NAT Gateway.*
 
 1. In Account A (`VPC-A`), open **VPC > Endpoints > Create endpoint**.
 2. Service category: `AWS services` | Service name: `com.amazonaws.us-east-1.s3` (Type: **Gateway**).
@@ -92,7 +95,7 @@ VPC-A (Development VPC CIDR)                         VPC-B (Production VPC CIDR)
    - **Destination:** `S3 Prefix List` | **Target:** `S3 Gateway Endpoint` (`vpce-xxxx`).
 
 ### Step 6 — Create SSM Interface Endpoints (AWS PrivateLink)
-*An **Interface Endpoint** (powered by AWS PrivateLink) provisions Elastic Network Interfaces (ENIs) with private IP addresses inside your private subnets. **AWS Systems Manager (SSM)** Session Manager uses these endpoints to grant secure shell access to private EC2 instances without requiring open inbound SSH ports, public IP addresses, or a Bastion host.*
+*An **Interface Endpoint** (powered by AWS PrivateLink) provisions an **Elastic Network Interface (ENI)** — a virtual network interface with a private IP address — inside your private subnets. **AWS Systems Manager (SSM)** Session Manager uses these endpoints to grant secure shell access to private EC2 instances without requiring open inbound SSH ports, public IP addresses, or a Bastion host.*
 
 #### HTTPS — TCP 443 for SSM Interface Endpoints
 - **Why:** SSM API communication requires encrypted HTTPS web service requests over PrivateLink.

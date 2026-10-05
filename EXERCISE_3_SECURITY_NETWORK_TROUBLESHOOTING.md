@@ -26,8 +26,10 @@ Security Groups, NACL, TCP, UDP, ICMP, Ports, Route Tables, CIDR, Stateful vs St
 
 - **Abhishek.Veeramalla — Day-5 | AWS Security Group and NACL | Theory + Practical**
   - Link: https://www.youtube.com/watch?v=TtlKFgfN3PU
+  - **Watch for:** Security Group rules, Network ACL stateless filtering, ephemeral port configuration
 - **Abhishek.Veeramalla — Learn Networking in 3 Hours | Networking Fundamentals + AWS VPC Networking**
   - Link: https://www.youtube.com/watch?v=iSOfkw_YyOU
+  - **Watch for:** Security Group vs NACL differences, stateful vs stateless traffic evaluation
   - Verified Timestamp:
     - `1:40:22` — AWS Security Groups & NACL
 

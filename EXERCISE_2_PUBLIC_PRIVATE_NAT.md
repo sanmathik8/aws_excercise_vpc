@@ -27,8 +27,10 @@ VPC, Subnets, Route Tables, Internet Gateway, NAT Gateway, Elastic IP, Security 
 
 - **Abhishek.Veeramalla — Learn Networking in 3 Hours | Networking Fundamentals + AWS VPC Networking**
   - Link: https://www.youtube.com/watch?v=iSOfkw_YyOU
+  - **Watch for:** Internet Gateway architecture, Public Subnet routing, Default route `0.0.0.0/0`
 - **Abhishek.Veeramalla — Day-4 | Best VPC explanation | VPC explained in 30 mins**
   - Link: https://www.youtube.com/watch?v=P8g7Z4NYk3Q
+  - **Watch for:** NAT Gateway deployment, Elastic IP allocation, Outbound-only connectivity
 
 ---
 

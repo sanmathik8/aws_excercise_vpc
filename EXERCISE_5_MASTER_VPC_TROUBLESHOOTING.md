@@ -28,8 +28,10 @@ VPC, CIDR, Subnet, AZ, Route Table, IGW, NAT, Security Group, NACL, VPC Peering,
 
 - **Abhishek.Veeramalla — Day-7 | AWS Project Used In Production | Complete Implementation**
   - Link: https://www.youtube.com/watch?v=FZPTL_kNvXc
+  - **Watch for:** Multi-account VPC setup, production network architecture, route tables
 - **Abhishek.Veeramalla — Day-8 | AWS Scenario Based Interview Questions on EC2, IAM and VPC**
   - Link: https://www.youtube.com/watch?v=qtkWHhikLh8
+  - **Watch for:** VPC scenario interview questions, EC2/VPC troubleshooting
 
 ---
 
