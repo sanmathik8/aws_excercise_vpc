@@ -7,8 +7,8 @@
 You are the Lead Cloud & Backend Infrastructure Engineer for **OrderHub**. Your organization has mandated a complete enterprise-grade multi-account, cross-region AWS networking footprint.
 
 The system spans two AWS accounts and regions:
-- **Development Environment:** Account A (`111111111111`), Region `us-east-1`, `VPC-A` (`10.0.0.0/16`).
-- **Production Environment:** Account B (`222222222222`), Region `us-west-2`, `VPC-B` (`20.0.0.0/16`).
+- **Development Environment:** Account A (`Account A ID`), Region `us-east-1`, `VPC-A` (`Development VPC CIDR`).
+- **Production Environment:** Account B (`Account B ID`), Region `us-west-2`, `VPC-B` (`Production VPC CIDR`).
 
 The architecture supports multi-AZ redundancy, isolated public and private subnets, NAT-based outbound access, secure cross-account administration over VPC Peering, private S3 Gateway Endpoints, SSM Session Management via Interface Endpoints, fine-grained Security Groups, stateless NACLs, and diagnostic logging tools.
 
@@ -35,56 +35,56 @@ VPC, CIDR, Subnet, AZ, Route Table, IGW, NAT, Security Group, NACL, VPC Peering,
 
 Review and assemble the full canonical OrderHub multi-account architecture:
 
-```
-[Account A — Development (111111111111 / us-east-1)]
-VPC-A: 10.0.0.0/16
+```text
+[Account A — Development (Account A ID / us-east-1)]
+VPC-A: Development VPC CIDR
  ├── AZ-A (us-east-1a)
- │    ├── Public Subnet A (10.0.1.0/24) ──► Contains: Bastion EC2 (Public IP)
- │    └── Private Subnet A (10.0.11.0/24) ──► Contains: App / Other EC2 (Private IP)
+ │    ├── Public Subnet A (Public Subnet A CIDR) ──► Contains: Bastion EC2 (Public IP)
+ │    └── Private Subnet A (Private Subnet A CIDR) ──► Contains: App / Other EC2 (Private IP)
  └── AZ-B (us-east-1b)
-      ├── Public Subnet B (10.0.2.0/24) ──► Contains: NAT Gateway A (Elastic IP)
-      └── Private Subnet B (10.0.12.0/24) ──► Contains: Other EC2 (Private IP)
+      ├── Public Subnet B (Public Subnet B CIDR) ──► Contains: NAT Gateway A (Elastic IP)
+      └── Private Subnet B (Private Subnet B CIDR) ──► Contains: Other EC2 (Private IP)
 
  Account A Networking Components:
   • Internet Gateway (IGW-A)
-  • Public Route Table:  10.0.0.0/16 -> local | 0.0.0.0/0 -> IGW-A | 20.0.0.0/16 -> pcx-xxxx
-  • Private Route Table: 10.0.0.0/16 -> local | 0.0.0.0/0 -> NAT-A | 20.0.0.0/16 -> pcx-xxxx | S3 Prefix List -> vpce-s3
+  • Public Route Table:  VPC-A CIDR → local | 0.0.0.0/0 → IGW-A | Production VPC CIDR → pcx-xxxx
+  • Private Route Table: VPC-A CIDR → local | 0.0.0.0/0 → NAT-A | Production VPC CIDR → pcx-xxxx | S3 Prefix List → vpce-s3
   • S3 Gateway Endpoint
   • SSM Interface Endpoints (ssm, ssmmessages, ec2messages)
-  • Bastion Security Group: Inbound TCP 22 from 0.0.0.0/0 | Outbound All Traffic to 20.0.0.0/16
-  • Target Security Group (Account A): Inbound TCP 22 from 10.0.1.0/24 | Outbound All Traffic
+  • Bastion Security Group: Inbound TCP 22 from 0.0.0.0/0 | Outbound All Traffic to Production VPC CIDR
+  • Target Security Group (Account A): Inbound TCP 22 from Bastion Subnet CIDR | Outbound All Traffic
 
                      ▲
                      │ Cross-Account / Cross-Region VPC Peering (pcx-xxxx)
                      ▼
 
-[Account B — Production (222222222222 / us-west-2)]
-VPC-B: 20.0.0.0/16
+[Account B — Production (Account B ID / us-west-2)]
+VPC-B: Production VPC CIDR
  ├── AZ-A (us-west-2a)
- │    ├── Public Subnet C (20.0.1.0/24) ──► Contains: NAT Gateway B (Elastic IP)
- │    └── Private Subnet C (20.0.11.0/24) ──► Contains: App EC2 (Private IP)
+ │    ├── Public Subnet C (Public Subnet C CIDR) ──► Contains: NAT Gateway B (Elastic IP)
+ │    └── Private Subnet C (Private Subnet C CIDR) ──► Contains: App EC2 (Private IP)
  └── AZ-B (us-west-2b)
-      ├── Public Subnet D (20.0.2.0/24)
-      └── Private Subnet D (20.0.12.0/24) ──► Contains: Target EC2 (Private IP)
+      ├── Public Subnet D (Public Subnet D CIDR)
+      └── Private Subnet D (Private Subnet D CIDR) ──► Contains: Target EC2 (Private IP)
 
  Account B Networking Components:
   • Internet Gateway (IGW-B)
-  • Public Route Table:  20.0.0.0/16 -> local | 0.0.0.0/0 -> IGW-B
-  • Private Route Table: 20.0.0.0/16 -> local | 0.0.0.0/0 -> NAT-B | 10.0.0.0/16 -> pcx-xxxx | S3 Prefix List -> vpce-s3
+  • Public Route Table:  VPC-B CIDR → local | 0.0.0.0/0 → IGW-B
+  • Private Route Table: VPC-B CIDR → local | 0.0.0.0/0 → NAT-B | Development VPC CIDR → pcx-xxxx | S3 Prefix List → vpce-s3
   • S3 Gateway Endpoint
   • SSM Interface Endpoints
-  • Target Security Group (Account B): Inbound TCP 22 from 10.0.1.0/24 | Outbound All Traffic
+  • Target Security Group (Account B): Inbound TCP 22 from Bastion Subnet CIDR | Outbound All Traffic
 ```
 
 ### Main Administration Architecture Flow:
-```
+```text
 Engineer (Internet)
    │
    ▼ (SSH TCP 22)
-Bastion EC2 [Account A / Public Subnet A (10.0.1.x)]
+Bastion EC2 [Account A / Public Subnet A (Bastion Private IP)]
    │
    ▼ (VPC Peering pcx-xxxx)
-Target EC2 [Account B / Private Subnet D (20.0.12.x)]
+Target EC2 [Account B / Private Subnet D (Target Private IP)]
 ```
 
 ---
@@ -94,98 +94,98 @@ Target EC2 [Account B / Private Subnet D (20.0.12.x)]
 Solve the following 12 realistic production incidents:
 
 ### Incident 1 — Bastion Cannot Reach Target Across Peering
-- **Symptom:** Developer on `Bastion-EC2` (`10.0.1.50`) attempts to SSH to `Target-EC2` (`20.0.12.50`) in Account B over VPC Peering. SSH command times out.
+- **Symptom:** Developer on `Bastion-EC2` (`Bastion Private IP`) attempts to SSH to `Target-EC2` (`Target Private IP`) in Account B over VPC Peering. SSH command times out.
 - **Troubleshooting Steps:**
   1. Inspect Peering Connection state in Account A/B (`Active`).
-  2. Inspect Account A `Public-Route-Table`: Verify route `20.0.0.0/16 -> pcx-xxxx` exists.
-  3. Inspect Account B `Private-Route-Table`: Verify return route `10.0.0.0/16 -> pcx-xxxx` exists.
-  4. Inspect Account B `Target-EC2-SG`: Verify inbound TCP 22 from source CIDR `10.0.1.0/24`.
+  2. Inspect Account A `Public-Route-Table`: Verify route `Production VPC CIDR → pcx-xxxx` exists.
+  3. Inspect Account B `Private-Route-Table`: Verify return route `Development VPC CIDR → pcx-xxxx` exists.
+  4. Inspect Account B `Target-EC2-SG`: Verify inbound TCP 22 from source `Bastion Subnet CIDR`.
   5. Inspect Account B `Private-Subnet-D` NACL: Verify inbound/outbound rules permit TCP 22 & ephemeral ports.
 - **Verification:** Correct the missing route or security group rule. SSH from Bastion to Target EC2 succeeds.
 - **Reasoning:** Cross-account peering traffic requires matching route table targets and explicitly allowed firewalls on both sending and receiving sides.
 
 ### Incident 2 — Production Target Cannot Reach Internet for Package Updates
-- **Symptom:** `Target-EC2` (`20.0.12.50`) in Account B fails to download OS security patches via `apt-get` or `yum`.
+- **Symptom:** `Target-EC2` (`Target Private IP`) in Account B fails to download OS security patches via `apt-get` or `yum`.
 - **Troubleshooting Steps:**
-  1. Inspect `Private-Subnet-D` route table in Account B. Verify route `0.0.0.0/0 -> NAT-Gateway-B`.
+  1. Inspect `Private-Subnet-D` route table in Account B. Verify route `0.0.0.0/0 → NAT-Gateway-B`.
   2. Inspect `NAT-Gateway-B` status in `us-west-2` console. Ensure status is `Available`.
-  3. Verify `NAT-Gateway-B` is located in `Public-Subnet-C` (`20.0.1.0/24`).
-  4. Inspect `Public-Route-Table` in Account B for `0.0.0.0/0 -> IGW-B`.
+  3. Verify `NAT-Gateway-B` is located in `Public-Subnet-C` (`Public Subnet C CIDR`).
+  4. Inspect `Public-Route-Table` in Account B for `0.0.0.0/0 → IGW-B`.
   5. Confirm Elastic IP is attached to `NAT-Gateway-B`.
-- **Verification:** Run `curl https://ifconfig.me` on `Target-EC2`. Confirm output matches the Elastic IP of `NAT-Gateway-B`.
-- **Reasoning:** Outbound internet flow requires: `Private EC2 -> Private RT -> NAT GW (in Public Subnet) -> Public RT -> IGW -> Internet`. Breaking any link disables outbound connectivity.
+- **Verification:** Run `curl https://ifconfig.me` on `Target-EC2`. Confirm output matches the Elastic IP assigned to `NAT-Gateway-B`.
+- **Reasoning:** Outbound internet flow requires: `Private EC2 → Private RT → NAT GW (in Public Subnet) → Public RT → IGW → Internet`. Breaking any link disables outbound connectivity.
 
 ### Incident 3 — S3 Access Uses NAT Gateway Unexpectedly
 - **Symptom:** The finance department alerts the team that Account A NAT Gateway data charges surged by \$1,200 due to S3 data transfers.
 - **Troubleshooting Steps:**
   1. Inspect Account A `Private-Route-Table`. Check if `S3 Gateway Endpoint` route is missing.
-  2. If S3 Gateway Endpoint route (`pl-63a5400a -> vpce-xxxx`) is absent, traffic to S3 defaults to `0.0.0.0/0 -> NAT-Gateway-A`.
+  2. If S3 Gateway Endpoint route (`S3 Prefix List → vpce-xxxx`) is absent, traffic to S3 defaults to `0.0.0.0/0 → NAT-Gateway-A`.
 - **Verification:** Associate `S3 Gateway Endpoint` with `Private-Route-Table`. Run `aws s3 ls --region us-east-1` from private EC2 and confirm traffic matches the prefix list route instead of default NAT.
 - **Reasoning:** S3 Gateway Endpoints inject prefix list routes that are more specific than `0.0.0.0/0`. Missing endpoints force S3 traffic through NAT Gateway, incurring heavy per-GB data processing charges.
 
 ### Incident 4 — SSM Session Manager Fails for Private Instance
-- **Symptom:** An engineer tries to open an SSM Session Manager shell to `Private-EC2` in Account A (`10.0.11.50`). The SSM console reports `Target instance not connected`.
+- **Symptom:** An engineer tries to open an SSM Session Manager shell to `Private-EC2` in Account A (`Private EC2 Private IP`). The SSM console reports `Target instance not connected`.
 - **Troubleshooting Steps:**
   1. **IAM Role:** Verify EC2 instance profile has `AmazonSSMManagedInstanceCore` policy attached.
   2. **SSM Agent:** Verify SSM Agent daemon is running on OS.
   3. **VPC DNS:** Verify VPC settings **Enable DNS resolution** and **Enable DNS hostnames** are `True`.
   4. **Interface Endpoints:** Verify endpoints for `ssm`, `ssmmessages`, `ec2messages` exist in `VPC-A`.
-  5. **Endpoint Security Group:** Verify `SSM-VPCE-SG` permits Inbound TCP 443 from `10.0.0.0/16`.
+  5. **Endpoint Security Group:** Verify `SSM-VPCE-SG` permits Inbound TCP 443 from `Development VPC CIDR`.
 - **Verification:** Click **Start Session** in SSM Console. Verify successful terminal shell prompt.
 - **Reasoning:** SSM Session Manager on private EC2 instances without internet access requires working IAM credentials, active OS daemon, private DNS, and reachable VPC Interface Endpoints on port 443.
 
 ### Incident 5 — Security Group Inbound Rule Is Allowed but Connection Fails
-- **Symptom:** Security Group for a database instance permits TCP port 5432 from `10.0.11.0/24`. However, database connection attempts hang indefinitely.
+- **Symptom:** Security Group for a database instance permits TCP port 5432 from `Private Subnet A CIDR`. However, database connection attempts hang indefinitely.
 - **Troubleshooting Steps:**
   1. Check Subnet Network ACLs (NACLs) attached to the database subnet.
   2. Inspect NACL Inbound Rules: Confirm rule allows TCP 5432.
   3. Inspect NACL Outbound Rules: Check if outbound rule blocking return traffic (ephemeral ports 1024–65535) exists.
-- **Verification:** Add NACL Outbound rule allowing TCP 1024–65535 to `10.0.11.0/24`. Retest database connection.
+- **Verification:** Add NACL Outbound rule allowing TCP 1024–65535 to `Private Subnet A CIDR`. Retest database connection.
 - **Reasoning:** Security Groups are stateful (auto-allow return packets), but NACLs are stateless. If a NACL outbound rule blocks return traffic on client ephemeral ports, the TCP handshake fails despite valid Security Group rules.
 
 ### Incident 6 — Multiple Routes Exist: Which Route Wins?
 - **Symptom:** `Private-Route-Table` contains the following entries:
-  - Route A: `10.0.0.0/16 -> local`
-  - Route B: `0.0.0.0/0 -> NAT-Gateway-A`
-  - Route C: `20.0.0.0/16 -> pcx-xxxx`
-  - Route D: `20.0.12.0/24 -> pcx-xxxx`
-  A packet is addressed to `20.0.12.50`.
+  - Route A: `VPC CIDR → local`
+  - Route B: `0.0.0.0/0 → NAT-Gateway-A`
+  - Route C: `Production VPC CIDR → pcx-xxxx`
+  - Route D: `Target Subnet CIDR → pcx-xxxx`
+  A packet is addressed to an IP located inside `Target Subnet CIDR`.
 - **Troubleshooting Inquiry:**
-  - Which route entry matches `20.0.12.50`?
-  - Why does Route D (`20.0.12.0/24`) win over Route C (`20.0.0.0/16`) and Route B (`0.0.0.0/0`)?
-- **Verification:** Confirm AWS router routes the packet to `Route D` based on **Longest Prefix Match** (`/24` has 24 matching network bits, making it more specific than `/16` or `/0`).
+  - Which route entry matches the packet?
+  - Why does Route D (`Target Subnet CIDR`) win over Route C (`Production VPC CIDR`) and Route B (`0.0.0.0/0`)?
+- **Verification:** Confirm AWS router routes the packet to `Route D` based on **Longest Prefix Match** (the target subnet mask has more matching network bits, making it more specific than the VPC CIDR or default route).
 - **Reasoning:** Routers always prioritize the route with the highest mask length (longest prefix) matching the destination IP.
 
 ### Incident 7 — One-Direction Traffic Initiation Works, Reverse Fails
-- **Symptom:** Host in Account A (`10.0.1.50`) can initiate SSH to Host in Account B (`20.0.12.50`). However, Host in Account B (`20.0.12.50`) cannot initiate SSH to Host in Account A (`10.0.1.50`).
+- **Symptom:** Host in Account A (`Bastion Private IP`) can initiate SSH to Host in Account B (`Target Private IP`). However, Host in Account B (`Target Private IP`) cannot initiate SSH to Host in Account A (`Bastion Private IP`).
 - **Troubleshooting Steps:**
-  1. Inspect `Bastion-SG` in Account A. Does it have an Inbound Rule allowing SSH (TCP 22) from `20.0.0.0/16` or `20.0.12.0/24`?
+  1. Inspect `Bastion-SG` in Account A. Does it have an Inbound Rule allowing SSH (TCP 22) from `Production VPC CIDR` or `Target Subnet CIDR`?
   2. Inspect Account A `Bastion-SG` outbound rules vs Account B `Target-SG` inbound rules.
 - **Verification:** Explain why stateful firewalls allow return packets for connections initiated by Account A, but drop new connection attempts initiated by Account B unless explicit inbound rules exist in Account A's Security Group.
 - **Reasoning:** Security Groups automatically permit return traffic for connections initiated locally. Initiating a connection in the reverse direction requires explicit inbound Security Group rules on the receiving end.
 
 ### Incident 8 — Private Endpoint DNS Resolution Failure
-- **Symptom:** Application on `Private-EC2` calls `https://sqs.us-east-1.amazonaws.com` but receives public IP address `52.94.233.36` instead of internal private IP `10.0.11.99`.
+- **Symptom:** Application on `Private-EC2` calls `https://sqs.us-east-1.amazonaws.com` but receives a public IP address instead of internal private IP.
 - **Troubleshooting Steps:**
   1. Inspect `VPC-A` settings: **Enable DNS resolution** (`True`) and **Enable DNS hostnames** (`True`).
   2. Inspect SQS Interface Endpoint settings: Verify **Enable Private DNS name** is checked.
-- **Verification:** Enable Private DNS name on SQS Interface Endpoint. Run `dig sqs.us-east-1.amazonaws.com` and confirm answer resolves to private IP `10.0.11.x`.
+- **Verification:** Enable Private DNS name on SQS Interface Endpoint. Run `dig sqs.us-east-1.amazonaws.com` and confirm answer resolves to a private IP in `VPC-A`.
 - **Reasoning:** Private DNS overrides public DNS hostnames to point to Interface Endpoint ENIs. If Private DNS is disabled, DNS resolves to AWS public endpoints over the internet/NAT path.
 
 ### Incident 9 — Cross-Region Peering Rule Misconfiguration
 - **Symptom:** Administrator configures an inbound Security Group rule in Account B (`us-west-2`) referencing `sg-0a1b2c3d4e5f` (Bastion SG in Account A `us-east-1`). The AWS Console throws an error.
 - **Troubleshooting Steps:**
   1. Check AWS Region placement of source SG (`us-east-1`) vs destination SG (`us-west-2`).
-- **Verification:** Replace Security Group ID reference with explicit source CIDR `10.0.1.0/24`.
+- **Verification:** Replace Security Group ID reference with explicit source CIDR (`Bastion Subnet CIDR`).
 - **Reasoning:** AWS does not support Security Group ID references across different AWS Regions over VPC Peering. Cross-region rules must strictly use IPv4/IPv6 CIDR blocks.
 
 ### Incident 10 — VPC Flow Logs Investigation (`ACCEPT` vs `REJECT`)
 - **Symptom:** A backend microservice cannot send events to a database. You need concrete diagnostic evidence.
 - **Troubleshooting Steps:**
   1. Open CloudWatch Log Insights for `VPC-A` Flow Logs.
-  2. Run query:
+  2. Run query filtering by destination:
      `fields @timestamp, srcAddr, dstAddr, dstPort, action, logStatus`
-     `| filter dstAddr = '10.0.12.50' and dstPort = 5432`
+     `| filter dstAddr = 'Target Private IP' and dstPort = 5432`
   3. Analyze results:
      - If `action == 'REJECT'`: Traffic blocked by SG or NACL.
      - If `action == 'ACCEPT'`: Network path is open; check database service status or local OS firewall (`iptables`/`ufw`).
@@ -198,7 +198,7 @@ Solve the following 12 realistic production incidents:
   1. Open **VPC > Reachability Analyzer**.
   2. Create path analysis from `Bastion-EC2` ENI to `Target-EC2` ENI on port 22.
   3. Analyze intermediate hop analysis output:
-     `Source ENI -> Public RT -> Peering Connection -> Private RT -> NACL -> Target SG -> Target ENI`
+     `Source ENI → Public RT → Peering Connection → Private RT → NACL → Target SG → Target ENI`
 - **Verification:** Identify the exact component highlighted in red (e.g., `Target SG: No matching inbound rule`). Fix configuration and re-run Reachability Analyzer until status reads `REACHABLE`.
 - **Reasoning:** Reachability Analyzer deterministically evaluates network configuration models across VPC components without sending live packets.
 
@@ -215,7 +215,7 @@ Solve the following 12 realistic production incidents:
 
 ## Networking
 
-- **CIDR (Classless Inter-Domain Routing):** Standard IP address allocation method defining network masks (e.g., `10.0.0.0/16` vs `10.0.1.0/24`).
+- **CIDR (Classless Inter-Domain Routing):** Standard IP address allocation method defining network masks (e.g., `/16` vs `/24`).
 - **Subnets:** Segmented subdivisions of a VPC IP range bound to a single Availability Zone.
 - **Availability Zones:** Physically isolated AWS data center facilities designed for fault tolerance.
 - **Route Tables:** Dynamic routing rule tables that direct traffic leaving subnets and gateways.
@@ -227,7 +227,7 @@ Solve the following 12 realistic production incidents:
 - **VPC Peering:** Private networking connection linking two VPCs across accounts and regions.
 - **Gateway Endpoint:** Route table target endpoint for S3 and DynamoDB (no hourly charge).
 - **Interface Endpoint:** ENI-based endpoint powered by AWS PrivateLink for private service access.
-- **VPC DNS:** Amazon-provided DNS Resolver (`10.0.0.2`) required for private domain name resolution.
+- **VPC DNS:** Amazon-provided DNS Resolver (at base VPC network + 2) required for private domain name resolution.
 - **VPC Flow Logs:** Packet metadata logging mechanism capturing ACCEPT/REJECT status at ENIs.
 - **Reachability Analyzer:** Static path analysis tool for testing VPC component connectivity.
 - **SSM Session Manager:** Secure instance management service eliminating SSH keys and bastion hosts.

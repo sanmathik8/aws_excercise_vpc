@@ -5,8 +5,8 @@
 ## Scenario
 
 OrderHub's corporate architecture requires multi-account segregation:
-- **Development Environment:** Account A (`111111111111`), Region `us-east-1` (`VPC-A`, CIDR `10.0.0.0/16`).
-- **Production Environment:** Account B (`222222222222`), Region `us-west-2` (`VPC-B`, CIDR `20.0.0.0/16`).
+- **Development Environment:** Account A (`Account A ID`), Region `us-east-1` (`VPC-A`, CIDR `Development VPC CIDR`).
+- **Production Environment:** Account B (`Account B ID`), Region `us-west-2` (`VPC-B`, CIDR `Production VPC CIDR`).
 
 OrderHub developers in Account A need secure administrative access to target backend databases in Account B without sending traffic over the public internet. Furthermore, internal backend instances must access AWS S3 buckets and AWS Systems Manager (SSM) without routing traffic through NAT Gateways or exposing endpoints to the internet.
 
@@ -41,40 +41,41 @@ VPC Peering, CIDR, Route Tables, Cross-Account AWS, Cross-Region AWS, Gateway En
 
 Follow these steps to establish private connectivity across accounts, regions, and AWS services:
 
-```
+```text
 Account A (us-east-1)                                Account B (us-west-2)
-VPC-A (10.0.0.0/16)                                  VPC-B (20.0.0.0/16)
- ├── Bastion EC2 (10.0.1.x)                          ├── Target EC2 (20.0.12.x)
+VPC-A (Development VPC CIDR)                         VPC-B (Production VPC CIDR)
+ ├── Bastion EC2 (Bastion Private IP)                 ├── Target EC2 (Target Private IP)
  └── Public Route Table                              └── Private Route Table
       │                                                   │
-      └───► 20.0.0.0/16 ──► [VPC Peering pcx-123] ◄── 10.0.0.0/16 ◄───┘
+      └───► Production VPC CIDR ──► [VPC Peering pcx-123] ◄── Development VPC CIDR ◄───┘
 ```
 
 ### Step 1 — Prepare VPCs Across Accounts & Regions
-- Confirm **VPC-A** in Account A (`us-east-1`): `10.0.0.0/16`.
-- Confirm **VPC-B** in Account B (`us-west-2`): `20.0.0.0/16`.
+- Confirm **VPC-A** in Account A (`us-east-1`): `Development VPC CIDR`.
+- Confirm **VPC-B** in Account B (`us-west-2`): `Production VPC CIDR`.
+- Ensure `Development VPC CIDR` and `Production VPC CIDR` are planned as non-overlapping CIDR blocks.
 
 ### Step 2 — Create VPC Peering Connection
 1. In Account A (`us-east-1`), open **VPC > Peering Connections**.
 2. Click **Create Peering Connection**:
    - **Name:** `VPC-A-to-VPC-B-Peering`
-   - **VPC ID (Requester):** `VPC-A` (`10.0.0.0/16`)
-   - **Account:** Another account -> Enter Account B ID `222222222222`
-   - **Region:** Another region -> Select `us-west-2`
+   - **VPC ID (Requester):** `VPC-A` (`Development VPC CIDR`)
+   - **Account:** Another account → Enter `Account B ID`
+   - **Region:** Another region → Select `us-west-2`
    - **VPC ID (Accepter):** Enter `VPC-B` ID.
 3. Switch to Account B (`us-west-2`), open **Peering Connections**, select the pending request, and click **Accept Request**.
 
 ### Step 3 — Add Routes on Both Sides
 1. **Account A (VPC-A Route Tables):**
    - In `Public-Route-Table` and `Private-Route-Table`, add route:
-     - **Destination:** `20.0.0.0/16` | **Target:** `Peering Connection` (`pcx-xxxx`)
+     - **Destination:** `Production VPC CIDR` | **Target:** `Peering Connection` (`pcx-xxxx`)
 2. **Account B (VPC-B Route Tables):**
    - In `Private-Route-Table`, add route:
-     - **Destination:** `10.0.0.0/16` | **Target:** `Peering Connection` (`pcx-xxxx`)
+     - **Destination:** `Development VPC CIDR` | **Target:** `Peering Connection` (`pcx-xxxx`)
 
 ### Step 4 — Configure Security Groups for Cross-Region Peering
 1. In Account B (`Target-EC2-SG`), add Inbound Rule:
-   - Type: `SSH (TCP 22)` | Source: `10.0.1.0/24` (Bastion Subnet CIDR in Account A).
+   - Type: `SSH (TCP 22)` | Source: `Bastion Subnet CIDR` (Public Subnet A CIDR in Account A).
    - *Note:* Do NOT reference Security Group IDs (`sg-xxxx`) across regions; use CIDR blocks.
 
 ### Step 5 — Create S3 Gateway Endpoint
@@ -82,7 +83,7 @@ VPC-A (10.0.0.0/16)                                  VPC-B (20.0.0.0/16)
 2. Service category: `AWS services` | Service name: `com.amazonaws.us-east-1.s3` (Type: **Gateway**).
 3. Select `VPC-A` and associate with `Private-Route-Table`.
 4. Verify that `Private-Route-Table` automatically receives a route:
-   - **Destination:** `pl-63a5400a` (S3 Prefix List) | **Target:** `vpce-xxxx` (Gateway Endpoint).
+   - **Destination:** `S3 Prefix List` | **Target:** `S3 Gateway Endpoint` (`vpce-xxxx`).
 
 ### Step 6 — Create SSM Interface Endpoints (AWS PrivateLink)
 1. Open **VPC > Endpoints > Create endpoint** in `VPC-A`.
@@ -92,51 +93,51 @@ VPC-A (10.0.0.0/16)                                  VPC-B (20.0.0.0/16)
    - `com.amazonaws.us-east-1.ec2messages`
 3. Select `VPC-A` and private subnets (`Private-Subnet-A`, `Private-Subnet-B`).
 4. Enable **Enable Private DNS name**.
-5. Attach a Security Group (`SSM-VPCE-SG`) allowing inbound TCP 443 from `10.0.0.0/16`.
+5. Attach a Security Group (`SSM-VPCE-SG`) allowing inbound TCP 443 from `Development VPC CIDR`.
 
 ### Step 7 — Verify Private Connectivity
-- From `Bastion-EC2` in Account A (`10.0.1.x`), run:
-  `ssh ec2-user@<TARGET-PRIVATE-IP-ACCOUNT-B>` (e.g., `20.0.12.50`).
+- From `Bastion-EC2` in Account A (`Bastion Private IP`), run:
+  `ssh ec2-user@<TARGET-PRIVATE-IP-ACCOUNT-B>`.
 
 ---
 
 ## Scenario-Based Verification & Troubleshooting
 
 ### Scenario 1 — Active Peering Connection but Traffic Fails
-- **Symptom:** In Account A console, the Peering Connection shows state `Active`. However, running `ssh 20.0.12.50` from Bastion results in `Connection timed out`.
+- **Symptom:** In Account A console, the Peering Connection shows state `Active`. However, running SSH from Bastion to Target Private IP results in `Connection timed out`.
 - **Investigation:**
-  1. Inspect `VPC-A` Public Route Table in Account A. Does it have `20.0.0.0/16 -> pcx-xxxx`?
-  2. Inspect `VPC-B` Private Route Table in Account B. Does it have `10.0.0.0/16 -> pcx-xxxx`?
-  3. Inspect `Target-EC2-SG` in Account B. Does it permit inbound TCP 22 from `10.0.1.0/24`?
+  1. Inspect `VPC-A` Public Route Table in Account A. Does it have `Production VPC CIDR → pcx-xxxx`?
+  2. Inspect `VPC-B` Private Route Table in Account B. Does it have `Development VPC CIDR → pcx-xxxx`?
+  3. Inspect `Target-EC2-SG` in Account B. Does it permit inbound TCP 22 from `Bastion Subnet CIDR`?
 - **Verification:** Explain why `Active` status only means AWS established the virtual link. Traffic fails until BOTH side route tables and security groups are configured.
 - **Reasoning:** VPC Peering is a virtual network interface between two VPCs. AWS does not automatically inject routes or modify firewalls when peering is accepted.
 
 ### Scenario 2 — One-Way Route Configuration
-- **Symptom:** Account A route table has `20.0.0.0/16 -> pcx-xxxx`, but Account B route table is missing `10.0.0.0/16 -> pcx-xxxx`. Traffic fails.
+- **Symptom:** Account A route table has `Production VPC CIDR → pcx-xxxx`, but Account B route table is missing `Development VPC CIDR → pcx-xxxx`. Traffic fails.
 - **Investigation:**
-  1. Trace packet from `10.0.1.50` to destination `20.0.12.50`. Packet reaches Target EC2.
-  2. Target EC2 sends SYN-ACK response packet back to `10.0.1.50`.
-  3. Target EC2 checks Account B route table for destination `10.0.1.50`.
+  1. Trace packet from Bastion Private IP to destination Target Private IP. Packet reaches Target EC2.
+  2. Target EC2 sends SYN-ACK response packet back to Bastion Private IP.
+  3. Target EC2 checks Account B route table for destination Bastion Private IP.
 - **Questions to Answer:**
-  - What happens when Account B has no route for `10.0.0.0/16`?
+  - What happens when Account B has no route for `Development VPC CIDR`?
   - Where does Account B's router send the return packet?
-- **Verification:** Add `10.0.0.0/16 -> pcx-xxxx` to Account B Private Route Table. Retest SSH.
+- **Verification:** Add `Development VPC CIDR → pcx-xxxx` to Account B Private Route Table. Retest SSH.
 - **Reasoning:** Network communication requires bi-directional routing. Even if the request reaches the target, response packets will be dropped at the target's VPC router if no return route exists.
 
 ### Scenario 3 — Attempting to Peer Overlapping CIDRs
-- **Symptom:** A junior admin attempts to peer `VPC-A` (`10.0.0.0/16`) with a legacy staging VPC (`10.0.0.0/16`). AWS Console returns an error during creation.
+- **Symptom:** A junior admin attempts to peer `VPC-A` (`Development VPC CIDR`) with a legacy staging VPC configured with the exact same CIDR block. AWS Console returns an error during creation.
 - **Investigation:**
   1. Check IPv4 CIDR blocks for both VPCs.
 - **Questions to Answer:**
   - Why does AWS API block peering requests between overlapping CIDRs?
-  - How would IP routing break if two peered networks both used `10.0.1.0/24`?
+  - How would IP routing break if two peered networks both claimed the same subnet CIDR?
 - **Verification:** Document why CIDRs must be strictly non-overlapping before creating VPCs.
-- **Reasoning:** Routers cannot determine whether `10.0.1.50` refers to a local host or a peered remote host when CIDR blocks overlap.
+- **Reasoning:** Routers cannot determine whether an IP address refers to a local host or a peered remote host when CIDR blocks overlap.
 
 ### Scenario 4 — Non-Transitive VPC Peering Behavior
 - **Symptom:** The organization has three VPCs: `VPC-A` ↔ `VPC-B` ↔ `VPC-C`. `VPC-A` is peered with `VPC-B`, and `VPC-B` is peered with `VPC-C`. A developer expects `VPC-A` to reach `VPC-C` through `VPC-B`.
 - **Investigation:**
-  1. Attempt to send traffic from `VPC-A` (`10.0.0.0/16`) to `VPC-C` (`30.0.0.0/16`).
+  1. Attempt to send traffic from `VPC-A` (`Development VPC CIDR`) to `VPC-C` (`VPC-C CIDR`).
 - **Questions to Answer:**
   - Does AWS VPC Peering support transitive routing?
   - Will `VPC-B` act as an intermediate transit router between `VPC-A` and `VPC-C`?
@@ -150,10 +151,10 @@ VPC-A (10.0.0.0/16)                                  VPC-B (20.0.0.0/16)
   1. Inspect `Private-Route-Table`.
   2. Run `traceroute s3.us-east-1.amazonaws.com` from `App-EC2`.
 - **Questions to Answer:**
-  - Does S3 traffic route over `0.0.0.0/0 -> NAT Gateway` when no Gateway Endpoint exists?
+  - Does S3 traffic route over `0.0.0.0/0 → NAT Gateway` when no Gateway Endpoint exists?
   - What route entry does an S3 Gateway Endpoint add to the route table?
   - Why is an S3 Gateway Endpoint free of charge and more performant than NAT?
-- **Verification:** Attach S3 Gateway Endpoint to `Private-Route-Table`. Confirm S3 prefix list route (`pl-63a5400a`) appears. Verify traffic bypasses NAT Gateway.
+- **Verification:** Attach S3 Gateway Endpoint to `Private-Route-Table`. Confirm S3 prefix list route appears. Verify traffic bypasses NAT Gateway.
 - **Reasoning:** S3 Gateway Endpoints inject a specific prefix list route into the VPC route table. Because prefix routes are more specific than `0.0.0.0/0`, S3 traffic routes directly over the AWS internal network backbone, eliminating NAT processing fees.
 
 ### Scenario 6 — Interface Endpoint Private DNS Resolution
@@ -162,20 +163,20 @@ VPC-A (10.0.0.0/16)                                  VPC-B (20.0.0.0/16)
   1. Run `nslookup ssm.us-east-1.amazonaws.com` from the private EC2 instance.
   2. Check VPC DNS settings (**Enable DNS resolution** and **Enable DNS hostnames**).
   3. Inspect the Interface Endpoint **Enable Private DNS name** attribute.
-- **Verification:** When Private DNS is enabled, `nslookup ssm.us-east-1.amazonaws.com` returns the private ENI IP address (e.g., `10.0.11.85`) assigned to the Interface Endpoint inside `VPC-A`.
+- **Verification:** When Private DNS is enabled, `nslookup ssm.us-east-1.amazonaws.com` returns the private ENI IP address assigned to the Interface Endpoint inside `VPC-A`.
 - **Reasoning:** AWS PrivateLink Interface Endpoints create Elastic Network Interfaces (ENIs) inside your private subnets. Enabling Private DNS overrides public DNS responses so that standard AWS service hostnames resolve directly to your local endpoint ENI IP addresses.
 
 ### Scenario 7 — SSM Session Manager Fails to Connect
 - **Symptom:** An engineer attempts to connect to `App-EC2` via SSM Session Manager, but the console displays `Target instance is not connected`.
 - **Systematic Troubleshooting Order:**
-  ```
+  ```text
   1. SSM Agent Running ──► 2. IAM Role (AmazonSSMManagedInstanceCore) ──► 3. VPC DNS Enabled ──► 4. Interface Endpoints Active ──► 5. Endpoint SG TCP 443
   ```
 - **Execution:**
   1. Confirm `App-EC2` has an IAM Instance Profile with `AmazonSSMManagedInstanceCore` attached.
   2. Confirm VPC has Private DNS enabled.
   3. Confirm Interface Endpoints (`ssm`, `ssmmessages`, `ec2messages`) exist in `VPC-A`.
-  4. Confirm `SSM-VPCE-SG` allows Inbound HTTPS (TCP 443) from VPC CIDR `10.0.0.0/16`.
+  4. Confirm `SSM-VPCE-SG` allows Inbound HTTPS (TCP 443) from `Development VPC CIDR`.
   5. Retest SSM Session Manager connection.
 
 ### Scenario 8 — Security Group Reference Across Cross-Region Peering
@@ -185,7 +186,7 @@ VPC-A (10.0.0.0/16)                                  VPC-B (20.0.0.0/16)
 - **Questions to Answer:**
   - Can Security Group IDs be referenced across different AWS Regions in VPC Peering?
   - What source format must be used for cross-region peering security rules?
-- **Verification:** Replace Security Group ID reference with explicit source CIDR block `10.0.1.0/24` in `Target-EC2-SG`.
+- **Verification:** Replace Security Group ID reference with explicit source CIDR block (`Bastion Subnet CIDR`) in `Target-EC2-SG`.
 - **Reasoning:** AWS Security Group ID referencing across VPC Peering is supported ONLY within the same AWS Region. Cross-region peering requires IPv4 CIDR-based security group rules.
 
 ---
@@ -200,7 +201,7 @@ VPC-A (10.0.0.0/16)                                  VPC-B (20.0.0.0/16)
 - **Interface Endpoint (AWS PrivateLink):** A paid VPC endpoint type that provisions Elastic Network Interfaces (ENIs) with private IPs in your subnets to consume AWS services or custom services privately.
 - **Endpoint ENI:** A virtual network interface created in a subnet that serves as the entry point for traffic destined for an Interface Endpoint service.
 - **Private DNS for Endpoints:** A feature that overrides standard AWS service domain names to resolve to the private IP addresses of Interface Endpoint ENIs.
-- **S3 Prefix List:** A managed set of IP address ranges (`pl-xxxx`) representing Amazon S3 public endpoints, used in VPC route tables.
+- **S3 Prefix List:** A managed set of IP address ranges representing Amazon S3 public endpoints, used in VPC route tables.
 - **Systems Manager (SSM):** AWS service enabling secure instance management without requiring open inbound SSH ports or public IP addresses.
 
 ---

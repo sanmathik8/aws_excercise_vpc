@@ -40,13 +40,13 @@ Follow these steps to configure security rules and diagnostic tools in **VPC-A (
 2. **Inbound Rules:**
    - Type: `SSH` | Protocol: `TCP` | Port: `22` | Source: `0.0.0.0/0`
 3. **Outbound Rules:**
-   - Type: `Custom TCP` | Protocol: `TCP` | Port Range: `22` | Destination: `20.0.0.0/16` (Production VPC CIDR)
-   - Type: `All Traffic` | Destination: `10.0.0.0/16` (Local VPC CIDR)
+   - Type: `Custom TCP` | Protocol: `TCP` | Port Range: `22` | Destination: `Production VPC CIDR`
+   - Type: `All Traffic` | Destination: `Development VPC CIDR`
 
 ### Step 2 — Configure Target EC2 Security Group (`Target-EC2-SG`)
 1. Create a Security Group named `Target-EC2-SG` in `VPC-A`.
 2. **Inbound Rules:**
-   - Type: `SSH` | Protocol: `TCP` | Port: `22` | Source: `10.0.1.0/24` (`Public-Subnet-A` CIDR)
+   - Type: `SSH` | Protocol: `TCP` | Port: `22` | Source: `Public Subnet A CIDR` (or `Bastion Subnet CIDR`)
 3. **Outbound Rules:**
    - Type: `All Traffic` | Destination: `0.0.0.0/0`
 
@@ -66,8 +66,8 @@ Follow these steps to configure security rules and diagnostic tools in **VPC-A (
 ### Step 5 — Configure Reachability Analyzer Path Test
 1. Navigate to **VPC > Reachability Analyzer**.
 2. Click **Create and analyze path**:
-   - **Source type:** `Network Interfaces` (or Instances: `Bastion-EC2`).
-   - **Destination type:** `Network Interfaces` (or Instances: `App-EC2`).
+   - **Source type:** `Network Interfaces` (or Instance: `Bastion-EC2`).
+   - **Destination type:** `Network Interfaces` (or Instance: `App-EC2`).
    - **Protocol:** `TCP` | **Port:** `22`.
 
 ---
@@ -79,22 +79,22 @@ Follow these steps to configure security rules and diagnostic tools in **VPC-A (
 - **Systematic Investigation:**
   1. **EC2 State:** Verify `Bastion-EC2` state is `Running` and Status Checks are `2/2 passed`.
   2. **Public IP:** Confirm instance has a valid Public IPv4 address.
-  3. **Route Table:** Inspect `Public-Route-Table` associated with `Public-Subnet-A` for `0.0.0.0/0 -> IGW-A`.
+  3. **Route Table:** Inspect `Public-Route-Table` associated with `Public-Subnet-A` for `0.0.0.0/0 → IGW-A`.
   4. **Security Group (`Bastion-SG`):** Check inbound rules for TCP Port 22 from client IP or `0.0.0.0/0`.
   5. **NACL:** Inspect `Public-Subnet-A` NACL inbound rule 100 (`ALLOW TCP 22`) and outbound rule 100 (`ALLOW Ephemeral Ports 1024-65535`).
 - **Verification:** Once resolved, test SSH connection. Verify successful shell login prompt.
 - **Reasoning:** A `Connection timed out` error indicates packets are being silently dropped by a security rule (Security Group or NACL) or missing route table entry. A `Connection refused` error indicates traffic reached the OS but no service was listening on port 22.
 
 ### Scenario 2 — Bastion Can Reach Target, But Direct Internet Connection to Target Fails
-- **Symptom:** An engineer can SSH from `Bastion-EC2` (`10.0.1.50`) to `App-EC2` (`10.0.11.100`), but cannot SSH directly from their local workstation on the internet to `App-EC2`.
+- **Symptom:** An engineer can SSH from `Bastion-EC2` (`Bastion Private IP`) to `App-EC2` (`Target Private IP`), but cannot SSH directly from their local workstation on the internet to `App-EC2`.
 - **Investigation:**
   1. Inspect `App-EC2` subnet location (`Private-Subnet-A`).
   2. Inspect `Target-EC2-SG` inbound rules.
 - **Questions to Answer:**
   - Why is direct internet SSH impossible for an instance in a private subnet?
-  - How does restricting `Target-EC2-SG` inbound SSH to `10.0.1.0/24` safeguard private instances?
+  - How does restricting `Target-EC2-SG` inbound SSH to `Bastion Subnet CIDR` safeguard private instances?
 - **Verification:** Confirm direct internet SSH fails as expected, while SSH via Bastion succeeds.
-- **Reasoning:** `App-EC2` has no public IP address and resides in a private subnet without an IGW route. Additionally, its Security Group restricts inbound SSH strictly to the Bastion subnet CIDR (`10.0.1.0/24`), implementing defense-in-depth.
+- **Reasoning:** `App-EC2` has no public IP address and resides in a private subnet without an IGW route. Additionally, its Security Group restricts inbound SSH strictly to the Bastion subnet CIDR (`Public Subnet A CIDR`), implementing defense-in-depth.
 
 ### Scenario 3 — Security Group Inbound Rule Missing
 - **Symptom:** SSH from `Bastion-EC2` to `App-EC2` fails with `Operation timed out`.
@@ -103,9 +103,9 @@ Follow these steps to configure security rules and diagnostic tools in **VPC-A (
   2. Verify if an inbound rule exists for TCP port 22.
   3. Check the Source CIDR of the inbound rule.
 - **Questions to Answer:**
-  - If the inbound rule specifies `Source: 10.0.2.0/24` instead of `10.0.1.0/24`, why does SSH from `Bastion-EC2` (`10.0.1.50`) fail?
+  - If the inbound rule specifies `Source: Public Subnet B CIDR` instead of `Public Subnet A CIDR`, why does SSH from `Bastion-EC2` fail?
   - How do Security Group rules filter based on source CIDRs?
-- **Verification:** Update `Target-EC2-SG` inbound rule to `TCP 22` from `10.0.1.0/24` (or Bastion Security Group ID `sg-xxxx`). Test SSH connection from Bastion.
+- **Verification:** Update `Target-EC2-SG` inbound rule to `TCP 22` from `Bastion Subnet CIDR` (or Bastion Security Group ID). Test SSH connection from Bastion.
 - **Reasoning:** Security Groups are stateful firewalls operating at the ENI level. If no matching inbound rule exists for the specific source IP/CIDR, traffic is denied by default (implicit deny).
 
 ### Scenario 4 — Custom NACL Blocks Return Traffic (Stateless Filtering)
@@ -115,14 +115,14 @@ Follow these steps to configure security rules and diagnostic tools in **VPC-A (
   2. Inspect Inbound Rules: Rule 100 ALLOW TCP 22.
   3. Inspect Outbound Rules: Rule 100 ALLOW TCP 22 only.
 - **Questions to Answer:**
-  - When a client sends a packet from port 54321 to destination port 22, what port does the server use to send the **return response packet**?
+  - When a client sends a packet from ephemeral port 54321 to destination port 22, what port does the server use to send the **return response packet**?
   - Why are Security Groups **stateful** (automatically allow return traffic) while NACLs are **stateless** (require explicit outbound rules for return traffic)?
   - What ephemeral port range (1024–65535) must be allowed in NACL outbound rules?
 - **Verification:** Add Outbound NACL Rule 110: `ALLOW TCP Ports 1024-65535` to Destination `0.0.0.0/0`. Retest SSH.
 - **Reasoning:** Because NACLs are stateless, return packets are evaluated independently against outbound NACL rules. When an SSH connection is established, return traffic is sent to an ephemeral port (1024–65535) on the client. If outbound NACL rules only allow port 22, return traffic is dropped.
 
 ### Scenario 5 — Ping Fails While Application Traffic Works
-- **Symptom:** A developer runs `ping 10.0.11.100` from Bastion. Ping returns `100% packet loss`. However, `curl http://10.0.11.100:80` succeeds.
+- **Symptom:** A developer runs `ping` to `Target Private IP` from Bastion. Ping returns `100% packet loss`. However, `curl` on HTTP port 80 succeeds.
 - **Investigation:**
   1. Inspect `Target-EC2-SG` rules.
   2. Check protocol types in allowed rules.
@@ -138,7 +138,7 @@ Follow these steps to configure security rules and diagnostic tools in **VPC-A (
 - **Investigation:**
   1. Open CloudWatch Logs group for `VPC-A` Flow Logs.
   2. Execute search query filtering by target IP:
-     `srcaddr = '10.0.1.50' AND dstaddr = '10.0.11.100'`
+     `srcaddr = 'Bastion Private IP' AND dstaddr = 'Target Private IP'`
   3. Analyze log action entries:
      - `ACCEPT OK`: Traffic passed VPC Security Groups and NACLs (issue is inside OS or application listener).
      - `REJECT OK`: Traffic was blocked by a Security Group or NACL.
@@ -151,7 +151,7 @@ Follow these steps to configure security rules and diagnostic tools in **VPC-A (
   1. Open **VPC > Reachability Analyzer**.
   2. Run the analysis between `Bastion-EC2` and `App-EC2` for TCP 22.
   3. Inspect the path hop-by-hop diagnostic output:
-     `Source ENI -> Security Group -> NACL -> Route Table -> Subnet -> Destination ENI`
+     `Source ENI → Security Group → NACL → Route Table → Subnet → Destination ENI`
 - **Questions to Answer:**
   - Does Reachability Analyzer generate actual network packets over the wire?
   - What component does Reachability Analyzer flag if `Target-EC2-SG` lacks an inbound rule?
@@ -161,7 +161,7 @@ Follow these steps to configure security rules and diagnostic tools in **VPC-A (
 ### Scenario 8 — Standard AWS Security & Network Troubleshooting Pipeline
 - **Symptom:** Connectivity between two AWS nodes fails.
 - **Troubleshooting Sequence:** Students must follow this strict 5-stage diagnostic order:
-  ```
+  ```text
   Stage 1: Route Table ──► Stage 2: Security Group ──► Stage 3: NACL ──► Stage 4: IAM / SSM ──► Stage 5: OS / Firewall
   ```
 - **Execution:** Document every stage checked, the exact console configuration inspected, and empirical evidence (Flow Logs / Reachability Analyzer) used to fix the issue.

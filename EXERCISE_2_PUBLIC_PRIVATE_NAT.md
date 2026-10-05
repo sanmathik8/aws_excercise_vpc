@@ -32,21 +32,21 @@ VPC, Subnets, Route Tables, Internet Gateway, NAT Gateway, Elastic IP, Security 
 
 ## Build
 
-Building upon **VPC-A (10.0.0.0/16)** created in Exercise 1:
+Building upon **VPC-A (Development VPC CIDR)** created in Exercise 1:
 
-```
+```text
 Internet
    │
    ▼
 Internet Gateway (IGW-A)
    │
-   ├── Public Subnet B (10.0.2.0/24) ──► NAT Gateway A (with Elastic IP)
-   │                                          │
-   │                                          ▼
-   └── Private Route Table ◄──────────────────┘
+   ├── Public Subnet B (Public Subnet B CIDR) ──► NAT Gateway A (with Elastic IP)
+   │                                                     │
+   │                                                     ▼
+   └── Private Route Table ◄─────────────────────────────┘
             │
-            ├── Private Subnet A (10.0.11.0/24)
-            └── Private Subnet B (10.0.12.0/24)
+            ├── Private Subnet A (Private Subnet A CIDR)
+            └── Private Subnet B (Private Subnet B CIDR)
 ```
 
 ### Step 1 — Create and Attach Internet Gateway
@@ -66,7 +66,7 @@ Internet Gateway (IGW-A)
 1. Navigate to **VPC > NAT Gateways**.
 2. Click **Create NAT Gateway**:
    - **Name:** `NAT-Gateway-A`
-   - **Subnet:** Select `Public-Subnet-B` (`10.0.2.0/24`)
+   - **Subnet:** Select `Public-Subnet-B` (`Public Subnet B CIDR`)
    - **Connectivity type:** Public
    - **Elastic IP allocation ID:** Click **Allocate Elastic IP** to allocate a public Elastic IP.
 3. Wait until `NAT-Gateway-A` status turns to `Available`.
@@ -93,9 +93,9 @@ Internet Gateway (IGW-A)
 - **Investigation Step-by-Step:**
   1. **Public IP:** Check if `Bastion-EC2` has a Public IPv4 address assigned.
   2. **Subnet Route Table:** Verify `Public-Subnet-A` is associated with `Public-Route-Table`.
-  3. **IGW Route:** Inspect `Public-Route-Table` to confirm `0.0.0.0/0 -> IGW-A` exists.
+  3. **IGW Route:** Inspect `Public-Route-Table` to confirm `0.0.0.0/0 → IGW-A` exists.
   4. **IGW Attachment:** Verify `IGW-A` is in `Attached` state to `VPC-A`.
-  5. **Security Group:** Verify outbound rules allow HTTP/HTTPS or SSH.
+  5. **Security Group:** Verify outbound rules allow HTTP/HTTPS or SSH traffic.
   6. **NACL:** Verify Network ACL permits outbound/inbound traffic on ephemeral ports.
 - **Verification:** Once missing route or public IP is fixed, run `curl -I https://aws.amazon.com` from `Bastion-EC2` to confirm HTTP responses.
 - **Reasoning:** A subnet is only effectively public if its route table directs internet-bound traffic (`0.0.0.0/0`) to an attached Internet Gateway AND the EC2 instance has a public IP address to map via 1:1 NAT at the IGW.
@@ -104,24 +104,24 @@ Internet Gateway (IGW-A)
 - **Symptom:** `App-EC2` in `Private-Subnet-A` fails to run `sudo yum update` or curl external APIs.
 - **Investigation Step-by-Step:**
   1. Inspect `Private-Subnet-A` route table association.
-  2. Check if `Private-Route-Table` has `0.0.0.0/0 -> NAT-Gateway-A`.
+  2. Check if `Private-Route-Table` has `0.0.0.0/0 → NAT-Gateway-A`.
   3. Inspect `NAT-Gateway-A` status in console (must be `Available`, not `Failed` or `Deleting`).
   4. Verify `NAT-Gateway-A` resides in a **Public Subnet** (`Public-Subnet-B`).
   5. Verify `NAT-Gateway-A` has an Elastic IP assigned.
-  6. Verify `Public-Subnet-B` route table contains `0.0.0.0/0 -> IGW-A`.
-- **Verification:** Run `curl https://ifconfig.me` from `App-EC2`. It should return the Elastic IP address of `NAT-Gateway-A`.
-- **Reasoning:** The private instance sends packets to NAT Gateway via its default route. NAT Gateway translates the private source IP to its public Elastic IP and forwards packets to IGW. If any segment of this chain (Private RT -> NAT GW -> Public RT -> IGW) is broken, outbound internet access fails.
+  6. Verify `Public-Subnet-B` route table contains `0.0.0.0/0 → IGW-A`.
+- **Verification:** Run `curl https://ifconfig.me` from `App-EC2`. It should return the Elastic IP address assigned to `NAT-Gateway-A`.
+- **Reasoning:** The private instance sends packets to NAT Gateway via its default route. NAT Gateway translates the private source IP to its public Elastic IP and forwards packets to IGW. If any segment of this chain (Private RT → NAT GW → Public RT → IGW) is broken, outbound internet access fails.
 
 ### Scenario 3 — Private Instance Accidentally Has Direct Internet Route
-- **Symptom:** A developer attempts to fix outbound internet access for private instances by adding `0.0.0.0/0 -> IGW-A` directly to `Private-Route-Table`.
+- **Symptom:** A developer attempts to fix outbound internet access for private instances by adding `0.0.0.0/0 → IGW-A` directly to `Private-Route-Table`.
 - **Investigation:**
-  1. Inspect `Private-Route-Table` and identify the route `0.0.0.0/0 -> IGW-A`.
+  1. Inspect `Private-Route-Table` and identify the route `0.0.0.0/0 → IGW-A`.
   2. Check whether private EC2 instances have public IP addresses.
 - **Questions to Answer:**
   - Why is routing a private subnet directly to an IGW invalid for instances without public IPs?
   - What happens when an instance without a public IP sends a packet to the IGW?
   - Why does this ruin the intended private subnet isolation architecture?
-- **Verification:** Remove `0.0.0.0/0 -> IGW-A` from `Private-Route-Table` and restore `0.0.0.0/0 -> NAT-Gateway-A`.
+- **Verification:** Remove `0.0.0.0/0 → IGW-A` from `Private-Route-Table` and restore `0.0.0.0/0 → NAT-Gateway-A`.
 - **Reasoning:** Internet Gateways perform 1:1 NAT between an EC2 instance's private IP and its public IP. If an EC2 instance lacks a public IP, the IGW cannot perform NAT, causing internet traffic to drop even if the route exists. Furthermore, assigning public IPs to private workloads exposes them to direct inbound attack.
 
 ### Scenario 4 — NAT Gateway Created in Private Subnet
@@ -133,22 +133,22 @@ Internet Gateway (IGW-A)
 - **Questions to Answer:**
   - If NAT Gateway is placed in `Private-Subnet-A`, does that subnet have a route to `IGW-A`?
   - Can a NAT Gateway forward traffic to the internet if its own subnet lacks an Internet Gateway route?
-- **Verification:** Re-create `NAT-Gateway-A` in `Public-Subnet-B` (`10.0.2.0/24`), which has a valid default route to `IGW-A`.
-- **Reasoning:** A NAT Gateway must reside in a public subnet. It relies on the public subnet's route table (`0.0.0.0/0 -> IGW`) to forward source-translated packets out to the internet.
+- **Verification:** Re-create `NAT-Gateway-A` in `Public-Subnet-B`, which has a valid default route to `IGW-A`.
+- **Reasoning:** A NAT Gateway must reside in a public subnet. It relies on the public subnet's route table (`0.0.0.0/0 → IGW`) to forward source-translated packets out to the internet.
 
 ### Scenario 5 — NAT Works but Connection Still Fails
 - **Symptom:** `Private-Route-Table` correctly points to `NAT-Gateway-A`, but `App-EC2` cannot reach external sites.
 - **Required Systematic Troubleshooting Order:**
-  ```
+  ```text
   1. Route Table ──► 2. NAT Gateway Status ──► 3. NAT Subnet Route Table ──► 4. IGW Attachment ──► 5. Security Group ──► 6. NACL
   ```
 - **Verification:** Follow the troubleshooting pipeline sequentially:
-  1. Confirm `Private-Route-Table` has `0.0.0.0/0 -> NAT-Gateway-A`.
+  1. Confirm `Private-Route-Table` has `0.0.0.0/0 → NAT-Gateway-A`.
   2. Confirm `NAT-Gateway-A` state is `Available`.
-  3. Confirm `Public-Subnet-B` (NAT's subnet) has `0.0.0.0/0 -> IGW-A`.
+  3. Confirm `Public-Subnet-B` (NAT's subnet) has `0.0.0.0/0 → IGW-A`.
   4. Confirm `IGW-A` is attached to `VPC-A`.
   5. Confirm Security Group allows outbound traffic (default allows all).
-  6. Confirm NACL permits ephemeral ports (1024–65535) return traffic.
+  6. Confirm NACL permits ephemeral ports return traffic.
 
 ### Scenario 6 — NAT Gateway vs Internet Gateway Concepts
 - **Symptom:** A security auditor asks: "Why do we pay for a NAT Gateway when an Internet Gateway is free?"
@@ -175,7 +175,7 @@ Internet Gateway (IGW-A)
 
 ## Networking
 
-- **Public Subnet:** A subnet whose route table contains an explicit route to an Internet Gateway (`0.0.0.0/0 -> IGW`).
+- **Public Subnet:** A subnet whose route table contains an explicit route to an Internet Gateway (`0.0.0.0/0 → IGW`).
 - **Private Subnet:** A subnet whose route table has no route to an Internet Gateway, enforcing network isolation from direct internet inbound access.
 - **Internet Gateway (IGW):** A horizontally scaled, highly available VPC component that enables communication between instances in your VPC and the internet (1:1 NAT).
 - **NAT Gateway:** A managed Network Address Translation service that enables instances in a private subnet to connect to the internet (outbound-only) while preventing internet-initiated connections.
