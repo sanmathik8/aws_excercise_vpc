@@ -79,6 +79,8 @@ VPC-B: Production VPC CIDR
 ```
 
 ### Main Administration Architecture Flow:
+*In this architecture flow, the **Bastion Host** (in Account A Public Subnet A) serves as the secure administrative entry point over SSH. The **Target EC2** (in Account B Private Subnet D) is the private workload instance you are testing connectivity to over VPC Peering without exposing it directly to the internet.*
+
 ```text
 Engineer (Internet)
    │
@@ -132,7 +134,7 @@ Solve the following 12 realistic production incidents:
   2. **SSM Agent:** Verify SSM Agent daemon is running on OS.
   3. **VPC DNS:** Verify VPC settings **Enable DNS resolution** and **Enable DNS hostnames** are `True`.
   4. **Interface Endpoints:** Verify endpoints for `ssm`, `ssmmessages`, `ec2messages` exist in `VPC-A`.
-  5. **Endpoint Security Group:** Verify `SSM-VPCE-SG` permits Inbound TCP 443 from `Development VPC CIDR`.
+  5. **Endpoint Security Group:** Verify `SSM-VPCE-SG` permits Inbound HTTPS (TCP 443) from `Development VPC CIDR`.
 - **Verification:** Click **Start Session** in SSM Console. Verify successful terminal shell prompt.
 - **Reasoning:** SSM Session Manager on private EC2 instances without internet access requires working IAM credentials, active OS daemon, private DNS, and reachable VPC Interface Endpoints on port 443.
 

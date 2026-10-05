@@ -8,14 +8,18 @@
 
 Your engineering team is building the network foundation for **OrderHub**, an e-commerce backend platform. 
 
+A **Virtual Private Cloud (VPC)** is a logically isolated virtual network in your AWS account where you define your own IP address space, subnets, and route tables to run cloud resources. 
+
+An **Availability Zone (AZ)** consists of one or more discrete physical data centers within an AWS Region engineered with independent power, cooling, and networking to ensure fault tolerance.
+
 OrderHub's target architecture will eventually consist of three tiers:
 1. **Public Frontend Tier**: Handles incoming HTTPS traffic and API routing.
 2. **Private Backend Tier**: Hosts core business microservices and OrderHub APIs.
 3. **Private Database Tier**: Stores transactional customer data and order state.
 
-To meet production uptime SLAs, the network architecture must survive an infrastructure failure in any single AWS Data Center / Availability Zone (AZ). If `us-east-1a` experiences an outage, OrderHub services in `us-east-1b` must remain functional without network re-configuration.
+To meet production uptime SLAs, the network architecture must survive an infrastructure failure in any single Availability Zone. If `us-east-1a` experiences an outage, OrderHub services in `us-east-1b` must remain functional without network re-configuration.
 
-In this exercise, you will design and build the core multi-AZ Virtual Private Cloud (VPC) for OrderHub in **Account A (Development / us-east-1)**. You will choose a suitable non-overlapping CIDR block for your VPC, plan subnet CIDR allocations across two Availability Zones, set up route tables, establish local VPC routing, and configure VPC DNS resolution.
+In this exercise, you will design and build the core multi-AZ VPC for OrderHub in **Account A (Development / us-east-1)**. You will choose a suitable non-overlapping CIDR block for your VPC, plan subnet CIDR allocations across two Availability Zones, set up route tables, establish local VPC routing, and configure VPC DNS resolution.
 
 ---
 
@@ -58,6 +62,7 @@ VPC-A (Development VPC CIDR)
 5. Select **No IPv6 CIDR block** and keep tenancy as **Default**.
 
 ### Step 2 — Enable VPC DNS Settings
+*VPC DNS settings enable the Amazon-provided DNS server (located at your base VPC IP + 2) to resolve domain names and assign hostnames to instances inside your VPC.*
 1. Select `VPC-A`.
 2. Under **Actions**, click **Edit VPC settings**.
 3. Enable **Enable DNS resolution**.
@@ -65,6 +70,8 @@ VPC-A (Development VPC CIDR)
 5. Save changes.
 
 ### Step 3 — Create Subnets
+*A **Subnet** is a range of IP addresses within your VPC bound to a single Availability Zone. A **Public Subnet** has a route table entry to an Internet Gateway. A **Private Subnet** lacks a direct Internet Gateway route, isolating backend instances from direct internet access.*
+
 Create 4 non-overlapping subnets within `VPC-A` using your planned CIDR blocks:
 
 1. **Public Subnet A**:
@@ -85,6 +92,7 @@ Create 4 non-overlapping subnets within `VPC-A` using your planned CIDR blocks:
    - CIDR block: `Private Subnet B CIDR`
 
 ### Step 4 — Create Route Tables
+*A **Route Table** contains a set of rules (routes) that determine where network traffic leaving your subnets or gateways is directed.*
 1. Create a custom route table named `Public-Route-Table` in `VPC-A`.
 2. Create a custom route table named `Private-Route-Table` in `VPC-A`.
 

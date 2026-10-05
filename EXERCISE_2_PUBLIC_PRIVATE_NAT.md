@@ -52,6 +52,8 @@ Internet Gateway (IGW-A)
 ```
 
 ### Step 1 — Create and Attach Internet Gateway
+*An **Internet Gateway (IGW)** is a horizontally scaled, highly available VPC component that enables communication between public subnets in your VPC and the internet via 1:1 Network Address Translation.*
+
 1. Open **VPC > Internet Gateways**.
 2. Create an Internet Gateway named `IGW-A`.
 3. Select `IGW-A`, click **Actions > Attach to VPC**, and attach it to `VPC-A`.
@@ -65,6 +67,8 @@ Internet Gateway (IGW-A)
 4. Confirm `Public-Subnet-A` and `Public-Subnet-B` are associated with this route table.
 
 ### Step 3 — Create NAT Gateway A (Canonical Architecture)
+*A **NAT Gateway** is a managed AWS service placed in a public subnet that enables instances in private subnets to connect out to the internet (outbound-only) while blocking external internet hosts from initiating inbound connections. An **Elastic IP (EIP)** is a static public IPv4 address allocated to your NAT Gateway to represent its public footprint on the internet.*
+
 1. Navigate to **VPC > NAT Gateways**.
 2. Click **Create NAT Gateway**:
    - **Name:** `NAT-Gateway-A`
@@ -83,6 +87,8 @@ Internet Gateway (IGW-A)
 5. **Do NOT** route private subnets directly to the Internet Gateway.
 
 ### Step 5 — Launch Test Instances to Verify Connectivity
+*A **Bastion Host** is an EC2 instance placed in a public subnet with a public IP address. Engineers use it as a controlled entry point to reach private instances over SSH. The **Target EC2** (or **App EC2**) is a private EC2 instance residing in a private subnet that hosts your backend workload. The private target instance is not given a public IP and is not directly exposed to the internet, keeping it isolated from direct external attacks.*
+
 1. Launch `Bastion-EC2` in `Public-Subnet-A` with **Auto-assign Public IP** enabled.
 2. Launch `App-EC2` in `Private-Subnet-A` with **Auto-assign Public IP** disabled.
 

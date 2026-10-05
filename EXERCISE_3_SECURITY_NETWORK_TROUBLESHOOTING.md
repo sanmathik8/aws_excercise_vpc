@@ -38,6 +38,8 @@ Security Groups, NACL, TCP, UDP, ICMP, Ports, Route Tables, CIDR, Stateful vs St
 Follow these steps to configure security rules and diagnostic tools in **VPC-A (Account A)**:
 
 ### Step 1 — Configure Bastion Security Group (`Bastion-SG`)
+*A **Security Group** is a stateful virtual firewall operating at the Elastic Network Interface (ENI) level for your EC2 instances. It inspects incoming and outgoing traffic, automatically permitting return traffic for established connections.*
+
 1. Create a Security Group named `Bastion-SG` in `VPC-A`.
 2. **Inbound Rules:**
    - Type: `SSH` | Protocol: `TCP` | Port: `22` | Source: `0.0.0.0/0`
@@ -53,11 +55,15 @@ Follow these steps to configure security rules and diagnostic tools in **VPC-A (
    - Type: `All Traffic` | Destination: `0.0.0.0/0`
 
 ### Step 3 — Review Network ACLs (NACLs)
+*A **Network ACL (NACL)** is a stateless subnet-level firewall that acts as a second defense layer, filtering traffic entering and exiting your subnets using explicit, numbered allow and deny rules.*
+
 1. Navigate to **VPC > Network ACLs**.
 2. Inspect the `Default-NACL` associated with `Public-Subnet-A` and `Private-Subnet-A`.
 3. Confirm Rule `100` allows all traffic inbound and outbound (`0.0.0.0/0`).
 
 ### Step 4 — Enable VPC Flow Logs
+*A **VPC Flow Log** is a diagnostic tool that captures IP traffic metadata passing through network interfaces in your VPC, logging whether packets were `ACCEPT`ed or `REJECT`ed by Security Groups and NACLs.*
+
 1. Go to **VPC > Your VPCs > VPC-A**.
 2. Select the **Flow logs** tab and click **Create flow log**.
 3. **Settings:**
@@ -66,6 +72,8 @@ Follow these steps to configure security rules and diagnostic tools in **VPC-A (
    - Destination: `Send to CloudWatch Logs` (or S3 log bucket).
 
 ### Step 5 — Configure Reachability Analyzer Path Test
+*AWS **Reachability Analyzer** is a static path analysis tool that tests network connectivity between a source and destination endpoint in your VPC by analyzing resource configurations without sending active packets over the wire.*
+
 1. Navigate to **VPC > Reachability Analyzer**.
 2. Click **Create and analyze path**:
    - **Source type:** `Network Interfaces` (or Instance: `Bastion-EC2`).

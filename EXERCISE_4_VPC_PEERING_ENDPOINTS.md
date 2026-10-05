@@ -58,6 +58,8 @@ VPC-A (Development VPC CIDR)                         VPC-B (Production VPC CIDR)
 - Ensure `Development VPC CIDR` and `Production VPC CIDR` are planned as non-overlapping CIDR blocks.
 
 ### Step 2 — Create VPC Peering Connection
+*A **VPC Peering Connection** is a networking connection between two VPCs that enables you to route traffic between them using private IPv4 addresses across accounts and regions, operating without gateway hardware or public internet exposure.*
+
 1. In Account A (`us-east-1`), open **VPC > Peering Connections**.
 2. Click **Create Peering Connection**:
    - **Name:** `VPC-A-to-VPC-B-Peering`
@@ -81,6 +83,8 @@ VPC-A (Development VPC CIDR)                         VPC-B (Production VPC CIDR)
    - *Note:* Do NOT reference Security Group IDs (`sg-xxxx`) across regions; use CIDR blocks.
 
 ### Step 5 — Create S3 Gateway Endpoint
+*A **Gateway Endpoint** is a free VPC endpoint type that targets a specific route table entry using an AWS service Prefix List. It directs Amazon S3 traffic over the AWS internal network backbone, completely bypassing the internet and NAT Gateway.*
+
 1. In Account A (`VPC-A`), open **VPC > Endpoints > Create endpoint**.
 2. Service category: `AWS services` | Service name: `com.amazonaws.us-east-1.s3` (Type: **Gateway**).
 3. Select `VPC-A` and associate with `Private-Route-Table`.
@@ -88,6 +92,8 @@ VPC-A (Development VPC CIDR)                         VPC-B (Production VPC CIDR)
    - **Destination:** `S3 Prefix List` | **Target:** `S3 Gateway Endpoint` (`vpce-xxxx`).
 
 ### Step 6 — Create SSM Interface Endpoints (AWS PrivateLink)
+*An **Interface Endpoint** (powered by AWS PrivateLink) provisions Elastic Network Interfaces (ENIs) with private IP addresses inside your private subnets. **AWS Systems Manager (SSM)** Session Manager uses these endpoints to grant secure shell access to private EC2 instances without requiring open inbound SSH ports, public IP addresses, or a Bastion host.*
+
 1. Open **VPC > Endpoints > Create endpoint** in `VPC-A`.
 2. Create Interface Endpoints for SSM services:
    - `com.amazonaws.us-east-1.ssm`
