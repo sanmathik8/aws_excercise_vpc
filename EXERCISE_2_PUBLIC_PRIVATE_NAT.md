@@ -4,6 +4,8 @@
 
 ## Scenario
 
+![Exercise 2 Architecture](images/ex2.png)
+
 OrderHub's application architecture is expanding. The team is deploying public-facing frontend load balancers alongside private backend application microservices.
 
 The security requirement for OrderHub is explicit:

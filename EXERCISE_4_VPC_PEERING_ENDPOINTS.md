@@ -4,6 +4,8 @@
 
 ## Scenario
 
+![Exercise 4 Architecture](images/ex4.png)
+
 OrderHub's corporate architecture requires multi-account segregation:
 - **Development Environment:** Account A (`Account A ID`), Region `us-east-1` (`VPC-A`, CIDR `Development VPC CIDR`).
 - **Production Environment:** Account B (`Account B ID`), Region `us-west-2` (`VPC-B`, CIDR `Production VPC CIDR`).
@@ -141,8 +143,8 @@ VPC-A (Development VPC CIDR)                         VPC-B (Production VPC CIDR)
 - **Questions to Answer:**
   - Does AWS VPC Peering support transitive routing?
   - Will `VPC-B` act as an intermediate transit router between `VPC-A` and `VPC-C`?
-  - What architecture (e.g., Transit Gateway or direct peering `VPC-A` ↔ `VPC-C`) is required?
-- **Verification:** Explain non-transitive routing principles. Confirm `VPC-A` cannot reach `VPC-C` without an explicit direct peering connection (`VPC-A` ↔ `VPC-C`) or AWS Transit Gateway.
+  - What direct peering architecture (`VPC-A` ↔ `VPC-C`) is required?
+- **Verification:** Explain non-transitive routing principles. Confirm `VPC-A` cannot reach `VPC-C` without an explicit direct peering connection (`VPC-A` ↔ `VPC-C`).
 - **Reasoning:** AWS VPC Peering explicitly enforces non-transitive routing. Edge-to-edge routing across intermediate peered VPCs is blocked to prevent accidental network transit loops and security cross-talk.
 
 ### Scenario 5 — S3 Traffic Routing: Gateway Endpoint vs NAT Gateway
@@ -197,8 +199,8 @@ VPC-A (Development VPC CIDR)                         VPC-B (Production VPC CIDR)
 - **Cross-Account Peering:** A peering connection established between VPCs owned by two different AWS Accounts.
 - **Cross-Region Peering:** A peering connection established between VPCs located in two different AWS Regions.
 - **Non-Transitive Routing:** A routing constraint where traffic cannot pass through an intermediate peered network to reach a third network (`A ↔ B ↔ C` does not equal `A ↔ C`).
-- **Gateway Endpoint:** A free VPC endpoint type (for S3 and DynamoDB) that targets a route table entry using a prefix list.
-- **Interface Endpoint (AWS PrivateLink):** A paid VPC endpoint type that provisions Elastic Network Interfaces (ENIs) with private IPs in your subnets to consume AWS services or custom services privately.
+- **Gateway Endpoint:** A free VPC endpoint type (for S3) that targets a route table entry using a prefix list.
+- **Interface Endpoint (AWS PrivateLink):** A paid VPC endpoint type that provisions Elastic Network Interfaces (ENIs) with private IPs in your subnets to consume AWS services privately.
 - **Endpoint ENI:** A virtual network interface created in a subnet that serves as the entry point for traffic destined for an Interface Endpoint service.
 - **Private DNS for Endpoints:** A feature that overrides standard AWS service domain names to resolve to the private IP addresses of Interface Endpoint ENIs.
 - **S3 Prefix List:** A managed set of IP address ranges representing Amazon S3 public endpoints, used in VPC route tables.
@@ -210,6 +212,6 @@ VPC-A (Development VPC CIDR)                         VPC-B (Production VPC CIDR)
 
 - An `Active` status on a VPC Peering Connection only means the virtual link exists; traffic will fail until route tables and security groups on BOTH sides are configured.
 - Cross-region VPC Peering does NOT support referencing Security Group IDs in rules; always specify explicit IPv4 CIDRs.
-- Gateway Endpoints (S3/DynamoDB) modify route tables and carry no hourly cost; Interface Endpoints (SSM/ECR/etc.) deploy ENIs, require Security Groups, and incur hourly charges.
+- Gateway Endpoints (for S3) modify route tables and carry no hourly cost; Interface Endpoints (for SSM) deploy ENIs, require Security Groups, and incur hourly charges.
 - Always verify that VPC DNS Resolution and DNS Hostnames are enabled when setting up Interface Endpoints.
 - Systems Manager (SSM) requires three interface endpoints (`ssm`, `ssmmessages`, `ec2messages`) along with the `AmazonSSMManagedInstanceCore` IAM policy.

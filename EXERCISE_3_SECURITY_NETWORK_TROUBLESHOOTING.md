@@ -4,6 +4,8 @@
 
 ## Scenario
 
+![Exercise 3 Architecture](images/ex3.png)
+
 OrderHub's development environment is fully built out in **VPC-A (Account A / us-east-1)**. However, developers and backend engineers have begun reporting intermittent and confusing network failures:
 - Engineers cannot SSH into the Bastion server.
 - The Bastion server can connect to some private backend instances, but not others.

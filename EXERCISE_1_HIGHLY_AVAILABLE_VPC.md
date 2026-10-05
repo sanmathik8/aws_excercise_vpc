@@ -4,6 +4,8 @@
 
 ## Scenario
 
+![Exercise 1 Architecture](images/ex1.png)
+
 Your engineering team is building the network foundation for **OrderHub**, an e-commerce backend platform. 
 
 OrderHub's target architecture will eventually consist of three tiers:
@@ -162,10 +164,10 @@ Create 4 non-overlapping subnets within `VPC-A` using your planned CIDR blocks:
 - **Investigation:**
   1. Navigate to **VPC > Your VPCs > VPC-A**.
   2. Inspect **DNS settings**:
-     - **Enable DNS resolution**: controls whether the Amazon-provided DNS server (AmazonRoute53Resolver at the VPC network base + 2) is active.
+     - **Enable DNS resolution**: controls whether the Amazon-provided DNS server (at the VPC network base + 2) is active.
      - **Enable DNS hostnames**: controls whether EC2 instances in the VPC receive public/private DNS hostnames.
 - **Verification:** Ensure both `Enable DNS resolution` and `Enable DNS hostnames` are set to `Enabled`.
-- **Reasoning:** AWS Interface Endpoints and SSM Session Manager depend on private DNS resolution (`AmazonProvidedDNS`) to resolve AWS service domain names (e.g., `ssm.us-east-1.amazonaws.com`) to private IP addresses inside the VPC. If DNS settings are disabled, private endpoint resolution fails.
+- **Reasoning:** AWS Interface Endpoints and SSM Session Manager depend on private DNS resolution to resolve AWS service domain names (e.g., `ssm.us-east-1.amazonaws.com`) to private IP addresses inside the VPC. If DNS settings are disabled, private endpoint resolution fails.
 
 ---
 
@@ -179,7 +181,7 @@ Create 4 non-overlapping subnets within `VPC-A` using your planned CIDR blocks:
 - **Local Route:** The default non-deletable route (`VPC CIDR → local`) that enables all subnets inside the same VPC to communicate with each other.
 - **Public vs Private Subnet:** A subnet is public if its route table directs default outbound traffic (`0.0.0.0/0`) to an Internet Gateway. A subnet is private if it has no direct route to an Internet Gateway.
 - **Longest Prefix Match:** The standard IP routing algorithm where the router selects the route entry with the most specific subnet mask matching the destination IP.
-- **VPC DNS:** Built-in AWS DNS capabilities (AmazonProvidedDNS at base VPC IP + 2) required for private domain name resolution.
+- **VPC DNS:** Built-in AWS DNS capabilities (Amazon-provided DNS at base VPC IP + 2) required for private domain name resolution.
 
 ---
 

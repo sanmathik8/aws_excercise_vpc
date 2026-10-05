@@ -4,6 +4,8 @@
 
 ## Scenario
 
+![Exercise 5 Architecture](images/ex5.png)
+
 You are the Lead Cloud & Backend Infrastructure Engineer for **OrderHub**. Your organization has mandated a complete enterprise-grade multi-account, cross-region AWS networking footprint.
 
 The system spans two AWS accounts and regions:
@@ -225,7 +227,7 @@ Solve the following 12 realistic production incidents:
 - **Security Groups:** Stateful firewalls controlling traffic at the ENI level.
 - **Network ACLs (NACLs):** Stateless firewalls controlling traffic at the subnet boundary.
 - **VPC Peering:** Private networking connection linking two VPCs across accounts and regions.
-- **Gateway Endpoint:** Route table target endpoint for S3 and DynamoDB (no hourly charge).
+- **Gateway Endpoint:** Route table target endpoint for S3 (no hourly charge).
 - **Interface Endpoint:** ENI-based endpoint powered by AWS PrivateLink for private service access.
 - **VPC DNS:** Amazon-provided DNS Resolver (at base VPC network + 2) required for private domain name resolution.
 - **VPC Flow Logs:** Packet metadata logging mechanism capturing ACCEPT/REJECT status at ENIs.
